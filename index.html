@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Paddle Round Robin</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1f7a4d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Padel">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style id="app-css">
@@ -106,6 +114,27 @@ input:focus,select:focus{border-color:var(--accent)}
 .err{color:var(--loss);font-size:13px;margin-top:8px}
 .banner{font-size:13px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);margin-bottom:12px;color:var(--muted)}
 .busy{opacity:.6;pointer-events:none}
+.vs.live{background:var(--ball);color:#14201a}
+.vs.live:before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#c0392b;margin-right:5px;vertical-align:middle;animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.2}}
+.live-wrap{position:fixed;inset:0;z-index:30;background:var(--bg);display:flex;flex-direction:column;padding:12px 12px calc(14px + env(safe-area-inset-bottom));-webkit-user-select:none;user-select:none;touch-action:manipulation}
+.live-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px}
+.live-top .ttl{font-weight:700;font-size:14px}
+.live-top .ttl span{display:block;font-weight:500;color:var(--muted);font-size:12px}
+.lp{flex:1;min-height:0;width:100%;border:2px solid var(--line);border-radius:20px;margin:6px 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;background:var(--card);-webkit-tap-highlight-color:transparent;transition:transform .08s}
+.lp:active{transform:scale(.98)}
+.lp:disabled{cursor:default;opacity:.75}
+.lp.serving{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.lp.won{border-color:var(--ball);box-shadow:0 0 0 3px var(--ball)}
+.lp .num{font-size:min(26vw,24vh,150px);font-weight:800;line-height:1;font-variant-numeric:tabular-nums;font-family:"Bricolage Grotesque",Inter,sans-serif}
+.lp .nm{font-weight:600;font-size:16px;text-align:center;padding:0 10px}
+.lp .nm b{font-weight:800}
+.lp .tap{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.lmid{text-align:center;font-size:14px;padding:4px 6px;line-height:1.35}
+.lmid .k{font-size:12px;color:var(--muted)}
+.ends{background:var(--ball);color:#14201a;border-radius:12px;padding:8px;text-align:center;font-weight:700;margin:4px 0}
+.lbar{display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:4px}
+.lbar .btn{padding:13px}
 .rules h2{font-family:"Bricolage Grotesque",Inter,sans-serif;font-size:18px;margin:0 0 8px}
 .rules p{margin:0 0 8px}
 .rules ul{margin:0 0 4px;padding-left:20px}
@@ -123,7 +152,6 @@ input:focus,select:focus{border-color:var(--accent)}
 </head>
 <body>
 <div id="app"></div>
-<script type="application/json" id="state">null</script>
 <script id="app-src">
 (function(){
   "use strict";
@@ -131,19 +159,34 @@ input:focus,select:focus{border-color:var(--accent)}
     ppm:24,rounds:0,rankBy:"total",
     teams:[{id:"t1",name:""},{id:"t2",name:""},{id:"t3",name:""},{id:"t4",name:""}],
     matches:[],started:false,updatedAt:0};
-  var embedded = null;
-  try { embedded = JSON.parse(document.getElementById("state").textContent); } catch(e){}
-  var LSKEY = "rr-tracker-state";
+  /* =====================================================================
+     PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE (it ends in /exec)
+     Leave it empty to save on this phone only.
+     ===================================================================== */
+  var SHEET_API_URL = "";
+  /* ===================================================================== */
+
+  // Each tournament lives at tournaments/<id>. Use ?t=name in the URL to run a separate event.
+  var TID = ((new URLSearchParams(location.search).get("t")) || "main").replace(/[^a-zA-Z0-9_-]/g,"").slice(0,40) || "main";
+  var LSKEY = "rr-tracker-state" + (TID==="main" ? "" : "-"+TID);
   var local = null;
   try { local = JSON.parse(localStorage.getItem(LSKEY)); } catch(e){}
-  var S = embedded || local || JSON.parse(JSON.stringify(DEFAULT));
-  // fill fields added in later versions
-  Object.keys(DEFAULT).forEach(function(k){ if (S[k]===undefined) S[k]=JSON.parse(JSON.stringify(DEFAULT[k])); });
+  function normalise(v){
+    v = v || {};
+    Object.keys(DEFAULT).forEach(function(k){ if (v[k]===undefined) v[k]=JSON.parse(JSON.stringify(DEFAULT[k])); });
+    if (!Array.isArray(v.matches)) v.matches = Object.keys(v.matches||{}).map(function(k){ return v.matches[k]; });
+    v.matches.forEach(function(m){ if (!m.score) m.score=null; });
+    v.matches.sort(function(x,y){return x.r-y.r||x.i-y.i;});
+    if (!Array.isArray(v.teams)) v.teams = Object.keys(v.teams||{}).map(function(k){ return v.teams[k]; });
+    return v;
+  }
+  var S = normalise(local || JSON.parse(JSON.stringify(DEFAULT)));
   var ui = {tab: S.started ? "matches" : "setup", unplayedOnly:false, modal:null, resetArmed:false, copied:false};
-  var cap = null, readOnly = false, saveState = "idle", pubTimer = null;
-
-  var SRC = document.getElementById("app-src").textContent;
-  var CSS = document.getElementById("app-css").textContent;
+  var readOnly = false;
+  var USE_API = /^https:\/\/script\.google(usercontent)?\.com\//.test(SHEET_API_URL.trim());
+  var net = USE_API ? "connecting" : "local";   // connecting | live | offline | error | local
+  var loaded = !USE_API, pendingRender = false;
+  var ver = -1, queue = [], inflight = null, flushTimer = null, pollTimer = null;
 
   function AM(){ return S.mode==="americano"; }
   function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
@@ -156,48 +199,140 @@ input:focus,select:focus{border-color:var(--accent)}
   function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)),t=a[i];a[i]=a[j];a[j]=t;}return a;}
   function sign(n){return n>0?"+"+n:String(n);}
 
-  /* ---------- persistence ---------- */
-  function buildDoc(){
-    var json = JSON.stringify(S).replace(/</g,"\\u003c");
-    var close = "</" + "script>";
-    return "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n" +
-      "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n" +
-      "<title>" + esc(S.name || "Round Robin") + "</title>\n" +
-      "<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n" +
-      "<link href=\"https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">\n" +
-      "<style id=\"app-css\">" + CSS + "</style>\n</head>\n<body>\n<div id=\"app\"></div>\n" +
-      "<script type=\"application/json\" id=\"state\">" + json + close + "\n" +
-      "<script id=\"app-src\">" + SRC + close + "\n</body>\n</html>";
+  /* ---------- persistence (Google Sheet via Apps Script) ---------- */
+  var QKEY = LSKEY + "-queue";
+  function cacheLocal(){ try { localStorage.setItem(LSKEY, JSON.stringify(S)); } catch(e){} }
+  function saveQueue(){ try { localStorage.setItem(QKEY, JSON.stringify((inflight?[inflight]:[]).concat(queue))); } catch(e){} }
+  function sameKey(x,y){ return x.op===y.op && (x.op==="setAll" || (x.op==="live" && x.id===y.id)); }
+  function enqueue(op){
+    if (!USE_API) return;
+    queue = queue.filter(function(q){ return !sameKey(q,op); });
+    queue.push(op); saveQueue();
+    clearTimeout(flushTimer);
+    flushTimer = setTimeout(flush, op.op==="live" ? 250 : 0);
   }
+  function post(body){
+    return fetch(SHEET_API_URL.trim(), {method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:JSON.stringify(body)})
+      .then(function(r){ return r.json(); });
+  }
+  function flush(){
+    if (inflight || !queue.length) return;
+    var op = queue.shift(); inflight = op; saveQueue(); renderStatus();
+    var body = Object.assign({t:TID}, op);
+    if (op.op!=="live") body.sheet = sheetSummary();
+    post(body).then(function(res){
+      inflight = null;
+      if (!res || !res.ok){ net = "error"; saveQueue(); renderStatus(); return; }
+      net = "live"; ver = res.v; saveQueue();
+      if (!queue.length && res.state) applyRemote(res.state);
+      if (queue.length) flush(); else renderStatus();
+    }).catch(function(){
+      if (!(op.op==="live" && queue.some(function(q){return sameKey(q,op);}))) queue.unshift(op);
+      inflight = null; net = "offline"; saveQueue(); renderStatus();
+      setTimeout(flush, 4000);
+    });
+  }
+  function poll(){
+    clearTimeout(pollTimer);
+    var next = (ui.modal && ui.modal.kind==="live") ? 2000 : 3500;
+    if (!USE_API) return;
+    if (document.hidden){ pollTimer = setTimeout(poll, next); return; }
+    fetch(SHEET_API_URL.trim() + "?t=" + encodeURIComponent(TID) + "&since=" + ver, {cache:"no-store"})
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        if (!res || res.error){ net = "error"; if (!loaded){ loaded = true; render(); } else renderStatus(); return; }
+        net = "live";
+        var first = !loaded;
+        if (!res.same){
+          if (res.state){
+            if (res.v > ver && !inflight && !queue.length){ ver = res.v; applyRemote(res.state); }
+          } else if (first){
+            enqueue({op:"setAll", state:JSON.parse(JSON.stringify(S))}); // empty sheet: upload what this phone has
+          }
+        }
+        if (first){ loaded = true; ui.tab = S.started ? "matches" : "setup"; render(); } else renderStatus();
+      })
+      .catch(function(){ net = loaded ? "offline" : "error"; if (!loaded){ loaded = true; render(); } else renderStatus(); })
+      .then(function(){ pollTimer = setTimeout(poll, next); });
+  }
+  function applyRemote(v){
+    S = normalise(v); cacheLocal();
+    if (ui.modal){ // keep an open score sheet pointing at the fresh match object
+      var fresh = S.matches.filter(function(m){return m.id===ui.modal.m.id;})[0];
+      if (fresh && !(ui.modal.kind==="live" && fresh.score)) ui.modal.m = fresh; else ui.modal = null;
+    }
+    if (loaded) remoteRender();
+  }
+  // whole-tournament write: setup changes, generating fixtures, reset
   function commit(){
-    S.updatedAt = Date.now();
-    try { localStorage.setItem(LSKEY, JSON.stringify(S)); } catch(e){}
-    if (cap && !readOnly){
-      saveState = "saving";
-      clearTimeout(pubTimer);
-      pubTimer = setTimeout(function(){
-        cap.publish(buildDoc()).then(function(){ saveState="saved"; renderStatus(); })
-        .catch(function(err){
-          var code = (err && (err.code || err.name || err.message)) || "";
-          if (/not_granted|not_writer/.test(code)) { readOnly = true; saveState="readonly"; render(); }
-          else if (/conflict/.test(code)) { saveState="saved"; }
-          else { saveState="error"; renderStatus(); }
-        });
-      }, 700);
-    } else if (!cap) { saveState = "local"; }
+    S.updatedAt = Date.now(); cacheLocal();
+    enqueue({op:"setAll", state:JSON.parse(JSON.stringify(S))});
     render();
   }
+  // one score only, so two phones entering different matches never overwrite each other
+  function commitScore(m){
+    S.updatedAt = Date.now(); cacheLocal();
+    enqueue({op:"score", id:m.id, score:m.score ? JSON.parse(JSON.stringify(m.score)) : null});
+    render();
+  }
+  // live point-by-point score: a string of rally winners, e.g. "aab..."
+  function commitLive(m){
+    cacheLocal();
+    enqueue({op:"live", id:m.id, live:m.live ? {h:m.live.h, t:m.live.t} : null});
+    render();
+  }
+  function commitNewMatches(list){
+    S.updatedAt = Date.now(); cacheLocal();
+    enqueue({op:"addMatches", matches:JSON.parse(JSON.stringify(list))});
+    render();
+  }
+  // human-readable copy written to the "Results" and "Table" tabs of the sheet
+  function sheetSummary(){
+    var courts = Math.max(1, S.courts|0), byR = {};
+    S.matches.forEach(function(m){ (byR[m.r]=byR[m.r]||[]).push(m); });
+    var results = [["Round","Court", AM()?"Pair A":"Team A", AM()?"Pair B":"Team B","Score A","Score B","Status"]];
+    Object.keys(byR).sort(function(a,b){return a-b;}).forEach(function(r){
+      byR[r].sort(function(x,y){return x.i-y.i;}).forEach(function(m,idx){
+        var res = result(m), lv = (!m.score && m.live && m.live.h) ? liveOf(m) : null;
+        results.push([m.r, (idx%courts)+1, side(m,"a"), side(m,"b"),
+          res ? (setsMode()? m.score.a.join(" / ") : res.ga) : "", res ? (setsMode()? m.score.b.join(" / ") : res.gb) : "",
+          res ? "Played" : lv ? "Live "+lv.a+"-"+lv.b : "To play"]);
+      });
+    });
+    var table;
+    if (AM()){
+      table = [["Pos","Player","Played","Won","Drawn","Lost","+/-","Average","Points"]];
+      standingsAm().forEach(function(x,i){ table.push([i+1,x.name,x.p,x.w,x.d,x.l,x.diff,Math.round(x.avg*10)/10,x.pf]); });
+    } else {
+      table = [["Pos","Team","Played","Won","Drawn","Lost"].concat(setsMode()?["Sets +/-"]:[]).concat(["Games +/-","Points"])];
+      standingsTeams().forEach(function(x,i){ table.push([i+1,x.name,x.p,x.w,x.d,x.l].concat(setsMode()?[x.sd]:[]).concat([x.gd,x.pts])); });
+    }
+    return {name:S.name, results:results, table:table};
+  }
   function statusText(){
-    if (readOnly) return ["View only","warn"];
-    if (saveState==="saving") return ["Saving…",""];
-    if (saveState==="saved") return ["Saved ✓",""];
-    if (saveState==="error") return ["Not saved – retry","warn"];
-    if (saveState==="local") return ["Saved on this device",""];
-    return ["",""];
+    if (!USE_API) return ["Saved on this phone",""];
+    if (net==="error") return ["Can’t reach the sheet","warn"];
+    if (inflight || queue.length) return [net==="offline" ? "Offline – will sync" : "Saving…", net==="offline"?"warn":""];
+    if (net==="offline") return ["Offline – will sync","warn"];
+    if (net==="connecting") return ["Connecting…",""];
+    return ["● Live",""];
   }
   function renderStatus(){
     var el = document.getElementById("status"); if(!el) return;
     var s = statusText(); el.textContent = s[0]; el.className = "status " + s[1];
+  }
+  function remoteRender(){
+    var a = document.activeElement;
+    if (a && app.contains(a) && (a.tagName==="INPUT" || a.tagName==="SELECT") && !ui.modal){ pendingRender = true; return; }
+    render();
+  }
+  function connect(){
+    if (!USE_API) return;
+    try { var q = JSON.parse(localStorage.getItem(QKEY)); if (Array.isArray(q)) queue = q; } catch(e){}
+    document.addEventListener("visibilitychange", function(){ if (!document.hidden){ poll(); flush(); } });
+    window.addEventListener("online", function(){ flush(); poll(); });
+    poll(); if (queue.length) setTimeout(flush, 500);
+    setTimeout(function(){ if (!loaded){ loaded = true; net = "offline"; render(); } }, 12000);
   }
 
   /* ---------- fixed-team fixtures (circle method) ---------- */
@@ -370,12 +505,15 @@ input:focus,select:focus{border-color:var(--accent)}
     h += '<nav class="tabs">' + tabs.map(function(t){
       return '<button data-tab="'+t+'" class="'+(ui.tab===t?"on":"")+'">'+({matches:"Matches",table:"Table",rules:"Rules",setup:"Setup"})[t]+'</button>';
     }).join("") + '</nav>';
-    if (ui.tab==="matches") h += viewMatches(played,total);
+    if (!loaded) h += '<div class="card empty">Loading tournament…</div>';
+    else if (ui.tab==="matches") h += viewMatches(played,total);
     else if (ui.tab==="table") h += viewTable();
     else if (ui.tab==="rules") h += viewRules();
     else h += viewSetup();
     h += '</div>';
-    if (ui.modal) h += viewModal();
+    if (ui.modal && ui.modal.kind==="live") h += viewLive();
+    else if (ui.modal) h += viewModal();
+    keepAwake(!!(ui.modal && ui.modal.kind==="live"));
     app.innerHTML = h;
   }
 
@@ -405,7 +543,8 @@ input:focus,select:focus{border-color:var(--accent)}
           var big = setsMode() ? r2.sa+' – '+r2.sb : r2.ga+' – '+r2.gb;
           var sets = setsMode() ? '<span class="sets">'+m.score.a.map(function(v,i){return v+'-'+m.score.b[i];}).join(", ")+'</span>' : '';
           sc = '<span class="big">'+big+'</span>'+sets;
-        } else sc = '<span class="vs">Add score</span>';
+        } else if (m.live && m.live.h){ var lv=liveOf(m); sc = '<span class="vs live">'+lv.a+' – '+lv.b+'</span>'; }
+        else sc = '<span class="vs">Add score</span>';
         h += '<button class="match" data-match="'+m.id+'"><div class="court">Court '+court+(waves>1?' · Slot '+wave:'')+'</div>' +
           '<div class="t '+(r2&&r2.w==="b"?"dim":"")+'">'+sideHTML(m,"a")+'</div><div class="sc">'+sc+'</div>' +
           '<div class="t b '+(r2&&r2.w==="a"?"dim":"")+'">'+sideHTML(m,"b")+'</div></button>';
@@ -576,9 +715,60 @@ input:focus,select:focus{border-color:var(--accent)}
     return h;
   }
 
+  /* ---------- live point-by-point scoring ---------- */
+  function liveOf(m){
+    var h=(m.live&&m.live.h)||"", a=0, b=0;
+    for (var i=0;i<h.length;i++){ if (h[i]==="a") a++; else b++; }
+    return {h:h,a:a,b:b};
+  }
+  function serverAt(m,k){
+    var blk=serveBlock(S.ppm), order=[m.a[0],m.b[0],m.a[1],m.b[1]], idx=Math.floor(k/blk)%4;
+    return {id:order[idx], pair: idx%2===0?"a":"b", side: (k%blk)%2===0?"right":"left", left: blk-(k%blk)};
+  }
+  var wakeLock=null;
+  function keepAwake(on){
+    try {
+      if (on && !wakeLock && navigator.wakeLock) navigator.wakeLock.request("screen").then(function(w){ wakeLock=w; w.addEventListener("release",function(){wakeLock=null;}); }).catch(function(){});
+      if (!on && wakeLock){ wakeLock.release(); wakeLock=null; }
+    } catch(e){}
+  }
+  document.addEventListener("visibilitychange", function(){ if (document.visibilityState==="visible" && ui.modal && ui.modal.kind==="live"){ wakeLock=null; keepAwake(true); } });
+  function viewLive(){
+    var m=ui.modal.m, L=liveOf(m), k=L.a+L.b, ppm=S.ppm, done = ppm>0 && k>=ppm, half=Math.floor(ppm/2);
+    var sv = done ? null : serverAt(m,k), courtNo = 0;
+    var inRound = S.matches.filter(function(x){return x.r===m.r;}).sort(function(x,y){return x.i-y.i;});
+    courtNo = (inRound.indexOf(m) % Math.max(1,S.courts|0)) + 1;
+    function panel(s){
+      var ids=m[s], win = done && ((s==="a"&&L.a>L.b)||(s==="b"&&L.b>L.a));
+      var names = ids.map(function(id){ var n=esc(tname(id)); return (sv && sv.id===id) ? '🎾 <b>'+n+'</b>' : n; }).join(' &amp; ');
+      return '<button class="lp '+(sv&&sv.pair===s?"serving":"")+(win?" won":"")+'" data-live="'+s+'"'+(done||readOnly?" disabled":"")+'>' +
+        '<span class="nm">'+names+'</span><span class="num">'+L[s]+'</span>' +
+        (done ? (win?'<span class="tap">Winners</span>':'') : '<span class="tap">Tap when this pair wins the point</span>') + '</button>';
+    }
+    var mid;
+    if (done){
+      mid = '<div class="lmid"><b>Match complete – '+L.a+'–'+L.b+'</b><div class="k">Tap undo if the last point was wrong.</div></div>';
+    } else {
+      mid = '<div class="lmid">Point <b>'+(k+1)+'</b>'+(ppm?' of '+ppm+' · '+(ppm-k)+' left':'') +
+        '<br>🎾 <b>'+esc(tname(sv.id))+'</b> serves from the <b>'+sv.side+'</b>' +
+        '<div class="k">'+(sv.left===1?'Last serve before it passes on':sv.left+' serves left in this turn')+'</div></div>';
+      if (ppm && k===half && k>0) mid = '<div class="ends">⇄ Halfway – change ends now</div>' + mid;
+    }
+    var canSave = !readOnly && (done || (!ppm && k>0));
+    return '<div class="live-wrap">' +
+      '<div class="live-top"><div class="ttl">Round '+m.r+' · Court '+courtNo+'<span>Live score – everyone sees it as you tap</span></div>' +
+      '<button class="icon" data-act="close" aria-label="Close">×</button></div>' +
+      panel("a") + mid + panel("b") +
+      '<div class="lbar"><button class="btn ghost" data-act="live-undo"'+(k&&!readOnly?"":" disabled")+'>↶ Undo</button>' +
+      (canSave ? '<button class="btn" data-act="live-save">Save result '+L.a+'–'+L.b+'</button>'
+               : '<button class="btn ghost" data-act="close">'+(ppm?'Close (score is kept)':'Close')+'</button>') + '</div>' +
+      '</div>';
+  }
+
   function viewModal(){
     var md = ui.modal, m = md.m, ro = readOnly?" disabled":"";
     var h = '<div class="scrim" data-act="close-bg"><div class="sheet"><h3>Round '+m.r+'</h3>' +
+      (AM() && !m.score && !readOnly ? '<button class="btn" data-act="live-open" style="margin:10px 0 2px">▶ Score live, point by point</button><div class="hint" style="text-align:center">Or enter the final score below.</div>' : '') +
       '<div class="vsline"><div>'+esc(side(m,"a"))+'</div><span>vs</span><div>'+esc(side(m,"b"))+'</div></div>';
     if (AM()){
       var order=[m.a[0],m.b[0],m.a[1],m.b[1]].map(tname), blk=serveBlock(S.ppm);
@@ -624,10 +814,18 @@ input:focus,select:focus{border-color:var(--accent)}
     if (d.tab){ ui.tab=d.tab; ui.copied=false; render(); window.scrollTo(0,0); return; }
     if (d.match){
       var m = findMatch(d.match), sm = setsMode();
+      if (AM() && !m.score && m.live && m.live.h){ ui.modal = {kind:"live", m:m}; render(); return; }
       var a = m.score ? m.score.a.slice() : (sm?[]:[0]);
       var b = m.score ? m.score.b.slice() : (sm?[]:[0]);
       if (!m.score && AM() && S.ppm){ a=[Math.ceil(S.ppm/2)]; b=[Math.floor(S.ppm/2)]; }
       ui.modal = {m:m,a:a,b:b,err:""}; render(); return;
+    }
+    if (d.live){
+      var mm=ui.modal.m, LL=liveOf(mm);
+      if (S.ppm && LL.a+LL.b>=S.ppm) return;
+      mm.live = {h:LL.h+d.live, t:Date.now()};
+      try { navigator.vibrate && navigator.vibrate(12); } catch(e){}
+      commitLive(mm); return;
     }
     if (d.step){ setSingle(d.step,(ui.modal[d.step][0]||0)+(+d.d)); render(); return; }
     if (d.mode){ S.mode=d.mode; commit(); return; }
@@ -650,14 +848,19 @@ input:focus,select:focus{border-color:var(--accent)}
         break;
       case "add-round":
         t.textContent="Adding…"; t.classList.add("busy");
-        setTimeout(function(){ S.matches = S.matches.concat(scheduleAmericano(S.matches,1)); commit(); }, 30);
+        setTimeout(function(){ var add = scheduleAmericano(S.matches,1); S.matches = S.matches.concat(add); commitNewMatches(add); }, 30);
         break;
       case "reset":
         if (!ui.resetArmed){ ui.resetArmed=true; render(); }
         else { ui.resetArmed=false; S.matches=[]; S.started=false; ui.tab="setup"; commit(); }
         break;
       case "close": case "close-bg": ui.modal=null; render(); break;
-      case "clear": ui.modal.m.score=null; ui.modal=null; commit(); break;
+      case "live-open": ui.modal = {kind:"live", m:ui.modal.m}; render(); break;
+      case "live-undo": var um=ui.modal.m, uh=liveOf(um).h; um.live = uh.length>1 ? {h:uh.slice(0,-1), t:Date.now()} : null; commitLive(um); break;
+      case "live-save":
+        var lm=ui.modal.m, L=liveOf(lm);
+        lm.score={a:[L.a],b:[L.b]}; lm.live=null; ui.modal=null; commitScore(lm); break;
+      case "clear": var cm=ui.modal.m; cm.score=null; ui.modal=null; commitScore(cm); break;
       case "save": saveScore(); break;
       case "copy": copyTable(); break;
     }
@@ -679,7 +882,7 @@ input:focus,select:focus{border-color:var(--accent)}
   });
   app.addEventListener("keydown", function(e){
     if (e.key==="Enter" && e.target.dataset.team && !S.started){ e.target.blur(); }
-    if (e.key==="Escape" && ui.modal){ ui.modal=null; render(); }
+    if (e.key==="Escape" && ui.modal){ if (ui.modal.kind==="live") return; ui.modal=null; render(); }
   });
 
   function saveScore(){
@@ -696,7 +899,7 @@ input:focus,select:focus{border-color:var(--accent)}
       a=[md.a[0]||0]; b=[md.b[0]||0];
       if (AM() && S.ppm && a[0]+b[0]!==S.ppm){ md.err="Scores should add up to "+S.ppm+" (currently "+(a[0]+b[0])+")."; render(); return; }
     }
-    md.m.score={a:a,b:b}; ui.modal=null; commit();
+    md.m.score={a:a,b:b}; var sm=md.m; ui.modal=null; commitScore(sm);
   }
 
   function copyTable(){
@@ -724,13 +927,8 @@ input:focus,select:focus{border-color:var(--accent)}
 
   render();
 
-  try {
-    if (window.claude && typeof window.claude.use==="function"){
-      window.claude.use("artifact").then(function(c){
-        cap = c; if (!cap) saveState = "local"; renderStatus();
-      }).catch(function(){ saveState="local"; renderStatus(); });
-    } else { saveState="local"; }
-  } catch(e){ saveState="local"; }
+  app.addEventListener("focusout", function(){ if (pendingRender){ pendingRender=false; setTimeout(function(){ if(!app.contains(document.activeElement)||document.activeElement===document.body) render(); else pendingRender=true; }, 0); } });
+  connect();
 })();
 </script>
 </body>
