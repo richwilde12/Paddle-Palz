@@ -29,6 +29,23 @@ html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 Inter,sys
 button,input,select{font:inherit;color:inherit}
 .wrap{max-width:720px;margin:0 auto;padding:16px 14px 80px}
 header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:4px 2px 14px}
+.hdr-r{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.help{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--card);font-weight:800;font-size:16px;cursor:pointer;color:var(--accent)}
+.guide h4{margin:0;font-size:15px}
+.gsec{border:1px solid var(--line);border-radius:12px;margin-top:8px;overflow:hidden}
+.gsec>button{display:flex;width:100%;justify-content:space-between;align-items:center;gap:10px;background:var(--card);border:0;padding:13px 14px;font-weight:700;text-align:left;cursor:pointer}
+.gsec>button span{color:var(--muted);font-weight:600;transition:transform .15s}
+.gsec.open>button span{transform:rotate(90deg)}
+.gbody{padding:0 14px 12px;font-size:14px}
+.gbody p{margin:6px 0}
+.gbody ul,.gbody ol{margin:6px 0;padding-left:20px}
+.gbody li{margin:5px 0}
+.gbody .k{display:inline-block;padding:1px 7px;border-radius:6px;background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:13px}
+.steps3{counter-reset:s;list-style:none;padding:0;margin:14px 0}
+.steps3 li{counter-increment:s;display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:start;margin:12px 0}
+.steps3 li:before{content:counter(s);display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-weight:800}
+.steps3 b{display:block}
+.steps3 small{color:var(--muted);font-size:13px}
 h1{font-family:"Bricolage Grotesque",Inter,sans-serif;font-weight:800;font-size:26px;line-height:1.05;margin:0;letter-spacing:-.02em}
 .sub{color:var(--muted);font-size:13px;margin-top:4px}
 .status{font-size:12px;color:var(--muted);white-space:nowrap}
@@ -303,7 +320,7 @@ input:focus,select:focus{border-color:var(--accent)}
             queue = [{op:"setAll", state:JSON.parse(JSON.stringify(S))}]; saveQueue(); setTimeout(flush, 0);
           }
         }
-        if (first){ loaded = true; ui.tab = S.started ? "matches" : "setup"; render(); } else renderStatus();
+        if (first){ loaded = true; ui.tab = S.started ? "matches" : "setup"; render(); maybeWelcome(); } else renderStatus();
         if (queue.length && !inflight) flush();
       })
       .catch(function(e){ diag.get = "Couldn\u2019t read: " + errText(e); diag.getAt = Date.now(); net = loaded ? "offline" : "error"; if (!loaded){ loaded = true; render(); } else renderStatus(); })
@@ -311,7 +328,7 @@ input:focus,select:focus{border-color:var(--accent)}
   }
   function applyRemote(v){
     S = normalise(v); cacheLocal();
-    if (ui.modal && ui.modal.kind!=="diag" && ui.modal.kind!=="session"){ // keep an open score sheet pointing at the fresh match object
+    if (ui.modal && ui.modal.m && ui.modal.m.id){ // keep an open score sheet pointing at the fresh match object
       var fresh = S.matches.filter(function(m){return m.id===ui.modal.m.id;})[0];
       if (fresh && !(ui.modal.kind==="live" && fresh.score)) ui.modal.m = fresh; else ui.modal = null;
     }
@@ -380,6 +397,7 @@ input:focus,select:focus{border-color:var(--accent)}
     var s = statusText(); el.textContent = s[0]; el.className = "status " + s[1];
   }
   function remoteRender(){
+    if (ui.modal && /^(guide|welcome|diag)$/.test(ui.modal.kind)){ pendingRender = true; return; }
     var a = document.activeElement;
     if (a && app.contains(a) && (a.tagName==="INPUT" || a.tagName==="SELECT") && !ui.modal){ pendingRender = true; return; }
     render();
@@ -556,7 +574,8 @@ input:focus,select:focus{border-color:var(--accent)}
     var st = statusText(), who = AM() ? "players" : "teams";
     var h = '<div class="wrap"><header><div><h1>'+esc(S.name||"Paddle Palz")+'</h1>' +
       '<div class="sub">'+(S.started? played+' of '+total+' matches played · '+S.teams.length+' '+who+(AM()?' · Americano':'') : 'Set up your '+who+' to get started')+'</div></div>' +
-      '<button id="status" data-act="diag" class="status '+st[1]+'">'+esc(st[0])+'</button></header>';
+      '<div class="hdr-r"><button class="help" data-act="guide" aria-label="Help and user guide">?</button>' +
+      '<button id="status" data-act="diag" class="status '+st[1]+'">'+esc(st[0])+'</button></div></header>';
     if (readOnly) h += '<div class="banner">You can view this tracker but not edit it.</div>';
     if (ui.tab==="rules" && !AM()) ui.tab="setup";
     var tabs = AM() ? ["matches","table","overall","rules","setup"] : ["matches","table","overall","setup"];
@@ -570,7 +589,9 @@ input:focus,select:focus{border-color:var(--accent)}
     else if (ui.tab==="rules") h += viewRules();
     else h += viewSetup();
     h += '</div>';
-    if (ui.modal && ui.modal.kind==="diag") h += viewDiag();
+    if (ui.modal && ui.modal.kind==="welcome") h += viewWelcome();
+    else if (ui.modal && ui.modal.kind==="guide") h += viewGuide();
+    else if (ui.modal && ui.modal.kind==="diag") h += viewDiag();
     else if (ui.modal && ui.modal.kind==="session") h += viewSession();
     else if (ui.modal && ui.modal.kind==="live") h += viewLive();
     else if (ui.modal) h += viewModal();
@@ -956,6 +977,84 @@ input:focus,select:focus{border-color:var(--accent)}
       '<button class="btn ghost" data-act="close">Close</button></div></div></div>';
   }
 
+  /* ---------- user guide ---------- */
+  var GKEY = "paddle-palz-guide-seen";
+  function guideSeen(){ try { return !!localStorage.getItem(GKEY); } catch(e){ return true; } }
+  function markGuideSeen(){ try { localStorage.setItem(GKEY, "1"); } catch(e){} }
+  function maybeWelcome(){ if (!guideSeen() && !ui.modal){ ui.modal = {kind:"welcome"}; render(); } }
+  function viewWelcome(){
+    return '<div class="scrim"><div class="sheet guide"><h3>Welcome to Paddle Palz \ud83c\udfbe</h3>' +
+      '<p class="hint" style="margin:4px 0 0">Scores and tables for our padel nights. Everyone with the link sees the same scores, live.</p>' +
+      '<ol class="steps3">' +
+      '<li><div><b>Find your match</b><small>The <b>Matches</b> tab lists every round, with your court and partner. If you\u2019re sitting out, it says so at the top of the round.</small></div></li>' +
+      '<li><div><b>Add the score</b><small>Tap your match. Enter the final score, or tap <b>\u25b6 Score live</b> and tap the pair that wins each rally.</small></div></li>' +
+      '<li><div><b>Check the tables</b><small><b>Today</b> is tonight\u2019s standings. <b>Overall</b> ranks everyone by average points per match across every session.</small></div></li>' +
+      '</ol>' +
+      '<p class="hint">Tip: add Paddle Palz to your home screen so it opens like an app. The full guide explains how.</p>' +
+      '<div class="actions"><button class="btn" data-act="welcome-done">Let\u2019s play</button>' +
+      '<button class="btn ghost" data-act="guide-full">Read the full guide</button></div></div></div>';
+  }
+  var GUIDE = [
+    ["start","What is Paddle Palz?",
+      '<p>A scoreboard for our padel sessions. It sets out who plays who and on which court, keeps score, and works out the tables. Everything saves to a shared Google Sheet, so every phone sees the same thing within a few seconds.</p>' +
+      '<p>Usually we play <b>Americano</b>: you get a new partner each round, and you keep every point your pair wins. The player with the most points wins the night.</p>'],
+    ["find","Finding your match",
+      '<ul><li>Open the <b>Matches</b> tab. Matches are grouped into rounds, each showing the <b>court number</b> and both pairs.</li>' +
+      '<li>If you\u2019re not playing in a round, your name appears under <b>Sitting out</b> at the top of that round.</li>' +
+      '<li>Tap <span class="k">Unplayed only</span> to hide finished matches.</li>' +
+      '<li>A yellow score with a flashing dot means a match is <b>being scored live</b> right now. Tap it to follow along.</li></ul>'],
+    ["score","Entering a score",
+      '<p>Anyone can enter a score, but only <b>one person per match</b> should do it.</p>' +
+      '<p><b>Final score:</b> tap the match, set one pair\u2019s points with + / \u2212 or by typing, and the other pair\u2019s fills in automatically. Tap <b>Save result</b>.</p>' +
+      '<p><b>Live, point by point:</b> tap the match, then <b>\u25b6 Score live</b>.</p>' +
+      '<ul><li>Tap the big button of the pair that <b>wins each rally</b>.</li>' +
+      '<li>\ud83c\udfbe shows who\u2019s serving and from which side. The serve passes on automatically.</li>' +
+      '<li>Tapped the wrong one? Hit <b>Undo</b>.</li>' +
+      '<li>A banner tells you when to <b>change ends</b> at halfway.</li>' +
+      '<li>When the last point is played, tap <b>Save result</b>. You can close the screen mid-match and the score is kept.</li></ul>' +
+      '<p><b>Made a mistake?</b> Tap a finished match to change the score, or tap <b>Clear result</b>.</p>'],
+    ["tables","Today and Overall tables",
+      '<p><b>Today</b> is this session only. In Americano, both players in a pair get the pair\u2019s points. Win 15\u20139 and you each add 15. P = played, W = won, +/\u2212 = points won minus points lost.</p>' +
+      '<p><b>Overall</b> combines every saved session plus tonight\u2019s matches so far. It ranks by <b>average points per match</b>, so it\u2019s fair if you miss a week. Players who haven\u2019t reached the minimum number of matches are listed underneath until they do.</p>' +
+      '<p>Tap a <b>past session</b> to see its final table. Both tables have a <b>Copy</b> button for pasting into the group chat.</p>'],
+    ["rules","Scoring and serving rules",
+      '<p>Every rally is <b>1 point</b>, with no 15-30-40 and no deuce. A match is a fixed total, e.g. <b>24 points</b>, so it ends when 24 rallies have been played, not when someone reaches 24.</p>' +
+      '<p>The serve goes A \u2192 C \u2192 B \u2192 D, alternating pairs, with each player serving a block of points (6 each in a 24-point match). The <b>Rules</b> tab has the full details.</p>'],
+    ["organise","For the organiser",
+      '<ol><li><b>Setup</b> \u2192 choose <b>Americano</b> (rotating partners) or <b>Fixed teams</b>.</li>' +
+      '<li>Add everyone\u2019s names. <b>Use the same spelling every week</b>, because that\u2019s how the Overall table matches people up.</li>' +
+      '<li>Set the courts and points per match (24 is a good default), then tap <b>Generate fixtures</b>. Everyone gets a fair mix of partners and sit-outs.</li>' +
+      '<li>Running ahead of time? <b>Matches</b> \u2192 <b>+ Add another round</b>.</li>' +
+      '<li>At the end of the night: <b>Setup</b> \u2192 <b>Finish &amp; save to history</b> (tap twice). That adds the night to Overall and clears the fixtures, keeping the names for next time.</li></ol>' +
+      '<p>To run a completely separate event, add <span class="k">?t=name</span> to the end of the link.</p>'],
+    ["status","What the badge in the corner means",
+      '<ul><li><b>\u25cf Live</b>: connected, and everything is saved.</li>' +
+      '<li><b>Saving\u2026</b>: sending your change to the sheet.</li>' +
+      '<li><b>Offline \u2013 will sync</b>: no signal. Keep scoring, and it sends everything once you\u2019re back online. Don\u2019t clear your browser data in the meantime.</li>' +
+      '<li><b>Can\u2019t reach the sheet</b>: a setup problem. Tap the badge to see the details and send them to the organiser.</li></ul>'],
+    ["home","Add it to your home screen",
+      '<p><b>iPhone (Safari):</b> tap the Share button \u2192 <b>Add to Home Screen</b> \u2192 Add.</p>' +
+      '<p><b>Android (Chrome):</b> tap the \u22ee menu \u2192 <b>Add to Home screen</b> or <b>Install app</b>.</p>' +
+      '<p>It then opens full screen with the Paddle Palz icon.</p>'],
+    ["faq","Quick answers",
+      '<p><b>Someone has to leave early?</b> Carry on. If players end up with different numbers of matches, the organiser can switch Setup \u2192 <b>Rank players by \u2192 Average per match</b>.</p>' +
+      '<p><b>Two people entered the same match?</b> The last one saved wins. Open the match and correct it if needed.</p>' +
+      '<p><b>Who can change scores?</b> Anyone with the link, so keep it within the group.</p>']
+  ];
+  function viewGuide(){
+    var open = ui.guideOpen || {};
+    var h = '<div class="scrim" data-act="close-bg"><div class="sheet guide"><h3>Paddle Palz guide</h3>' +
+      '<p class="hint" style="margin:2px 0 6px">Tap a topic to open it.</p>';
+    GUIDE.forEach(function(g){
+      var on = !!open[g[0]];
+      h += '<div class="gsec'+(on?" open":"")+'"><button data-gsec="'+g[0]+'" aria-expanded="'+on+'">'+g[1]+'<span>\u203a</span></button>' +
+        (on ? '<div class="gbody">'+g[2]+'</div>' : '') + '</div>';
+    });
+    h += '<div class="actions"><button class="btn ghost" data-act="welcome-again">Show the welcome screen</button>' +
+      '<button class="btn" data-act="close">Close</button></div></div></div>';
+    return h;
+  }
+
   function viewModal(){
     var md = ui.modal, m = md.m, ro = readOnly?" disabled":"";
     var h = '<div class="scrim" data-act="close-bg"><div class="sheet"><h3>Round '+m.r+'</h3>' +
@@ -1004,6 +1103,7 @@ input:focus,select:focus{border-color:var(--accent)}
     if (d.act!=="reset" && ui.resetArmed){ ui.resetArmed=false; }
     if (d.act!=="finish" && ui.finishArmed){ ui.finishArmed=false; }
     if (d.act!=="del-session" && ui.delArmed){ ui.delArmed=false; }
+    if (d.gsec){ ui.guideOpen = ui.guideOpen || {}; ui.guideOpen[d.gsec] = !ui.guideOpen[d.gsec]; render(); return; }
     if (d.session){ ui.modal={kind:"session", id:d.session, m:{id:null}}; ui.delArmed=false; render(); return; }
     if (d.minm!=null && t.hasAttribute("data-minm")){ S.minMatches=+d.minm; commit(); return; }
     if (d.tab){ ui.tab=d.tab; ui.copied=false; ui.copiedOverall=false; if (d.tab==="overall") fetchHistory(); render(); window.scrollTo(0,0); return; }
@@ -1064,7 +1164,11 @@ input:focus,select:focus{border-color:var(--accent)}
         if (!ui.resetArmed){ ui.resetArmed=true; render(); }
         else { ui.resetArmed=false; S.matches=[]; S.started=false; ui.tab="setup"; commit(); }
         break;
-      case "close": case "close-bg": ui.modal=null; render(); break;
+      case "close": case "close-bg": if (ui.modal && ui.modal.kind==="welcome") markGuideSeen(); ui.modal=null; pendingRender=false; render(); break;
+      case "guide": ui.modal = {kind:"guide"}; render(); break;
+      case "guide-full": markGuideSeen(); ui.guideOpen = {start:true}; ui.modal = {kind:"guide"}; render(); break;
+      case "welcome-done": markGuideSeen(); ui.modal = null; render(); break;
+      case "welcome-again": ui.modal = {kind:"welcome"}; render(); break;
       case "diag": ui.modal = {kind:"diag", m:{id:null}}; ui.diagCopied=false; render(); break;
       case "diag-retry": net = USE_API ? "connecting" : "local"; poll(); flush(); setTimeout(render, 2500); render(); break;
       case "diag-copy":
@@ -1142,6 +1246,7 @@ input:focus,select:focus{border-color:var(--accent)}
   }
 
   render();
+  if (loaded) maybeWelcome();
 
   app.addEventListener("focusout", function(){ if (pendingRender){ pendingRender=false; setTimeout(function(){ if(!app.contains(document.activeElement)||document.activeElement===document.body) render(); else pendingRender=true; }, 0); } });
   connect();
