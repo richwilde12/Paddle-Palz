@@ -185,6 +185,48 @@ input:focus,select:focus{border-color:var(--accent)}
 .tup small{display:block;font-weight:500;opacity:.9}
 .vs.live .clk{margin-left:6px;padding-left:6px;border-left:1px solid rgba(0,0,0,.2);font-variant-numeric:tabular-nums}
 .vs.live .clk.up{color:#b4231b}
+body.watch{background:#000;color:#fff;overflow:hidden;-webkit-user-select:none;user-select:none;touch-action:manipulation}
+body.watch .wrap{display:none}
+.wsc{position:fixed;inset:0;display:flex;flex-direction:column;background:#000}
+.wz{flex:1;border:0;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1vmin;color:#fff;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:filter .08s}
+.wz:active{filter:brightness(1.35)}
+.wz.wa{background:#145c39;padding-top:9vmin}
+.wz.wb{background:#26302b;padding-bottom:9vmin}
+.wz.serving .wn:before{content:"\1F3BE  "}
+.wz:disabled{opacity:.7}
+.wz.won{background:#7a8f12}
+.wp{font-family:"Bricolage Grotesque",Inter,sans-serif;font-weight:800;font-size:23vmin;line-height:1;font-variant-numeric:tabular-nums}
+.wn{font-size:6.2vmin;font-weight:600;max-width:64vmin;text-align:center;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wz.wb .wn{order:2}
+.wmid{position:relative;height:21vmin;flex:none;display:grid;grid-template-columns:16vmin 1fr 16vmin;align-items:center;background:#000;z-index:2}
+.wmid>button:not(.wctx):not(.wsave){height:16vmin;width:16vmin;border-radius:50%;border:0;background:#2b2b2b;color:#fff;font-size:8vmin;cursor:pointer;justify-self:center}
+.wctx{width:100%;min-width:0;overflow:hidden;border:0;background:none;color:#fff;text-align:center;line-height:1.15;font-size:6vmin;padding:0;cursor:pointer}
+.wctx b{display:block;font-family:"Bricolage Grotesque",Inter,sans-serif;font-size:9vmin;font-weight:800;font-variant-numeric:tabular-nums}
+.wctx small{display:block;font-size:5.4vmin;color:#c9d3cc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wctx .alert{color:#d9f24a;font-weight:700}
+.wsave{grid-column:1/-1;margin:0 10vmin;height:17vmin;border-radius:9vmin;border:0;background:#d9f24a;color:#14201a;font-weight:800;font-size:7vmin;cursor:pointer}
+.wsave.armed{background:#ff7a59;color:#fff}
+.wring{position:fixed;inset:0;pointer-events:none;z-index:3}
+.wring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.wring .trk{fill:none;stroke:rgba(255,255,255,.12);stroke-width:1.6}
+.wring .prog{fill:none;stroke:#3fae77;stroke-width:1.6;stroke-linecap:round;transition:stroke-dashoffset .25s linear,stroke .4s}
+.wring.t-warn .prog{stroke:#f0b429}.wring.t-crit .prog{stroke:#ff5a4f}.wring.t-up .prog{stroke:#ff5a4f}
+.wring.t-up{animation:wflash .5s ease-in-out 6}
+.wring.t-paused .prog{stroke:#888}
+@keyframes wflash{50%{background:rgba(255,90,79,.35)}}
+.wring [data-ttime],.wring [data-tlab]{display:none}
+body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
+.wl{position:fixed;inset:0;overflow-y:auto;padding:14vmin 11vmin 20vmin;background:#000;-webkit-overflow-scrolling:touch}
+.wh{text-align:center;font-family:"Bricolage Grotesque",Inter,sans-serif;font-weight:800;font-size:8vmin;margin-bottom:3vmin}
+.wh i{display:inline-block;width:2.6vmin;height:2.6vmin;border-radius:50%;background:#3fae77;vertical-align:middle;margin-left:1.5vmin}
+.wh i.off{background:#ff5a4f}
+.wr{font-size:5vmin;color:#9aa69f;text-align:center;margin:4vmin 0 1.5vmin;text-transform:uppercase;letter-spacing:.06em}
+.wi{display:block;width:100%;border:0;border-radius:6vmin;background:#1d2621;color:#fff;padding:3.5vmin 4vmin;margin:0 0 2.5vmin;text-align:center;cursor:pointer;font-size:5.8vmin;line-height:1.25}
+.wi b{display:block;font-weight:700}
+.wi small{display:block;color:#9aa69f;font-size:5vmin}
+.wi.live{background:#2d3a12;box-shadow:inset 0 0 0 .6vmin #d9f24a}
+.wi.live small:first-child{color:#d9f24a}
+.wmsg{text-align:center;color:#c9d3cc;font-size:6vmin;padding:6vmin 4vmin}
 .rules h2{font-family:"Bricolage Grotesque",Inter,sans-serif;font-size:18px;margin:0 0 8px}
 .rules p{margin:0 0 8px}
 .rules ul{margin:0 0 4px;padding-left:20px}
@@ -601,7 +643,10 @@ input:focus,select:focus{border-color:var(--accent)}
 
   /* ---------- render ---------- */
   var app = document.getElementById("app");
+  var WATCH = /(^|[?&])watch(=|&|$)/.test(location.search);
+  if (WATCH){ document.body.classList.add("watch"); ui.tab = "matches"; }
   function render(){
+    if (WATCH){ app.innerHTML = renderWatch(); keepAwake(!!(ui.modal && ui.modal.kind==="live")); return; }
     var played = S.matches.filter(function(m){return m.score;}).length, total=S.matches.length;
     var st = statusText(), who = AM() ? "players" : "teams";
     var h = '<div class="wrap"><header><div><h1>'+esc(S.name||"Paddle Palz")+'</h1>' +
@@ -1126,8 +1171,9 @@ input:focus,select:focus{border-color:var(--accent)}
     if (!(ui.modal && ui.modal.kind==="live")) return;
     var m=ui.modal.m, c=clockOf(m), bar=app.querySelector("[data-tbar]"); if (!bar) return;
     var frac = c.total ? c.left/c.total : 0;
-    bar.className = "tbar "+clockState(c);
+    bar.className = (bar.getAttribute("data-base")||"tbar")+" "+clockState(c);
     var tt=bar.querySelector("[data-ttime]"); if (tt) tt.textContent = c.up ? "0:00" : fmtClock(c.left);
+    var wc=app.querySelector("[data-wclock]"); if (wc) wc.textContent = c.up ? "Time!" : fmtClock(c.started?c.left:c.total);
     var pr=bar.querySelector(".prog"); if (pr) pr.setAttribute("stroke-dashoffset",(RING*(1-frac)).toFixed(1));
     var big=app.querySelector("[data-t10]"), sec=Math.ceil(c.left/1000);
     if (big){
@@ -1144,6 +1190,79 @@ input:focus,select:focus{border-color:var(--accent)}
     }
   }
   setInterval(tick, 250);
+
+  /* ---------- Android watch (Wear OS) layout: open with ?watch ---------- */
+  function shortName(n){ n=String(n||"").trim(); return n.length>10 ? n.split(/\s+/)[0].slice(0,10) : n; }
+  function sideShort(m,s){
+    var v=m[s];
+    if (Array.isArray(v)) return v.map(function(id){return shortName(tname(id));}).join(" & ");
+    var parts=teamPlayers(v); return /\((1st|2nd)\)$/.test(parts[0]) ? shortName(tname(v)) : parts.map(shortName).join(" & ");
+  }
+  function renderWatch(){
+    if (!loaded) return '<div class="wl"><div class="wh">Paddle Palz</div><div class="wmsg">Connecting\u2026</div></div>';
+    if (ui.modal && ui.modal.kind==="live" && ui.modal.m && findMatch(ui.modal.m.id)) return watchScorer(ui.modal.m);
+    ui.modal = null;
+    return watchList();
+  }
+  function watchList(){
+    var bad = net==="offline" || net==="error";
+    var h = '<div class="wl"><div class="wh">Paddle Palz<i class="'+(bad?"off":"")+'"></i></div>';
+    if (!S.started) return h + '<div class="wmsg">No fixtures yet.<br>Set up the session on a phone.</div></div>';
+    var todo = S.matches.filter(function(m){return !m.score;}).sort(function(x,y){
+      var lx = x.live&&(x.live.h||x.live.ts)?0:1, ly = y.live&&(y.live.h||y.live.ts)?0:1;
+      return lx-ly || x.r-y.r || x.i-y.i;
+    });
+    if (!todo.length) return h + '<div class="wmsg">All matches played \ud83c\udfbe<br>Check the table on a phone.</div></div>';
+    var courts=Math.max(1,S.courts|0), lastR=null;
+    todo.forEach(function(m){
+      var live = m.live && (m.live.h||m.live.ts);
+      var inR = S.matches.filter(function(x){return x.r===m.r;}).sort(function(x,y){return x.i-y.i;});
+      var court = (inR.indexOf(m)%courts)+1;
+      if (!live && m.r!==lastR){ h += '<div class="wr">Round '+m.r+'</div>'; lastR=m.r; }
+      h += '<button class="wi'+(live?" live":"")+'" data-wmatch="'+m.id+'"><small>'+(live?"\u25cf Live \u00b7 "+esc(liveText(m))+" \u00b7 ":"")+'Court '+court+'</small>' +
+        '<b>'+esc(sideShort(m,"a"))+'</b><small>v</small><b>'+esc(sideShort(m,"b"))+'</b></button>';
+    });
+    return h + '</div>';
+  }
+  function watchScorer(m){
+    var c = clockOf(m), done, la, lb, ctx, srv, alert="", winA=false, winB=false, servingSide=null, saveTxt="";
+    if (AM()){
+      var L=liveOf(m), k=L.a+L.b, ppm=S.ppm; done = ppm>0 && k>=ppm;
+      la=L.a; lb=L.b; winA = done && L.a>L.b; winB = done && L.b>L.a;
+      ctx = ppm ? "Point "+Math.min(k+1,ppm)+"/"+ppm : "Point "+(k+1);
+      if (!done){ var sv=serverAt(m,k); servingSide = sv.pair; srv = shortName(tname(sv.id))+" \u00b7 "+(sv.side==="right"?"R":"L"); }
+      if (ppm && k===Math.floor(ppm/2) && k>0) alert="\u21c4 Change ends";
+      saveTxt = L.a+"\u2013"+L.b;
+    } else {
+      var R=tennis(m); done=R.done;
+      la = done ? R.wa : ptLabel(R,"a"); lb = done ? R.wb : ptLabel(R,"b");
+      winA = done && R.winner==="a"; winB = done && R.winner==="b";
+      ctx = R.mtb ? "Match TB" : R.tb ? "Tiebreak" : "Games "+R.ga+"\u2013"+R.gb;
+      if (R.sets.length && !done) ctx = R.sets.map(function(x){return x.m?"TB":x[0]+"-"+x[1];}).join(" ")+" \u00b7 "+ctx;
+      if (!done){ servingSide = R.server.t; srv = shortName(R.server.n)+(R.golden?"":" \u00b7 "+(R.side==="right"?"R":"L")); }
+      if (R.ev==="game-ends"||R.ev==="set-ends"||R.ev==="ends") alert="\u21c4 Change ends";
+      else if (R.golden) alert="Golden point";
+      else if (R.deuce) alert="Deuce";
+      var sc=tennisScore(R); saveTxt = sc ? sc.a.map(function(x,i){return x+"-"+sc.b[i];}).join(" ") : "";
+    }
+    var showSave = !readOnly && (done || c.up) && saveTxt;
+    var ring = c.on ? '<div class="wring '+clockState(c)+'" data-tbar="'+m.id+'" data-base="wring"><svg viewBox="0 0 58 58"><circle class="trk" cx="29" cy="29" r="25"/><circle class="prog" cx="29" cy="29" r="25" stroke-dasharray="'+RING.toFixed(1)+'" stroke-dashoffset="'+(RING*(1-(c.total?c.left/c.total:0))).toFixed(1)+'"/></svg><span data-ttime></span><span data-tlab></span></div><div class="t10" data-t10></div>' : '';
+    var clockLine = c.on ? '<b data-wclock>'+(c.up?"Time!":c.started?fmtClock(c.left):fmtClock(c.total))+'</b>' : '';
+    var mid;
+    if (showSave){
+      mid = '<div class="wmid"><button class="wsave'+(ui.liveSaveArmed?" armed":"")+'" data-act="live-save">'+(ui.liveSaveArmed?"Tap to confirm":"Save "+esc(saveTxt))+'</button></div>';
+    } else {
+      var clockAct = !c.on || readOnly ? "" : (c.started ? ' data-act="clock-pause"' : ' data-act="clock-start"');
+      mid = '<div class="wmid"><button data-act="live-undo" aria-label="Undo"'+(readOnly?" disabled":"")+'>\u21b6</button>' +
+        '<button class="wctx"'+clockAct+'>'+clockLine+'<small>'+(alert?'<span class="alert">'+alert+'</span>':esc(ctx))+'</small>'+(srv?'<small>\ud83c\udfbe '+esc(srv)+(c.paused?' \u00b7 paused':'')+'</small>':'')+'</button>' +
+        '<button data-act="close" aria-label="Back to matches">\u2630</button></div>';
+    }
+    function zone(s, label, win){
+      return '<button class="wz w'+s+(servingSide===s?" serving":"")+(win?" won":"")+'" data-live="'+s+'"'+(done||readOnly?" disabled":"")+'>' +
+        '<span class="wn">'+esc(sideShort(m,s))+'</span><span class="wp">'+esc(String(label))+'</span></button>';
+    }
+    return ring + '<div class="wsc">' + zone("a",la,winA) + mid + zone("b",lb,winB) + '</div>';
+  }
 
   function viewLive(){
     if (!AM()) return viewLiveTeams();
@@ -1202,7 +1321,7 @@ input:focus,select:focus{border-color:var(--accent)}
   var GKEY = "paddle-palz-guide-seen";
   function guideSeen(){ try { return !!localStorage.getItem(GKEY); } catch(e){ return true; } }
   function markGuideSeen(){ try { localStorage.setItem(GKEY, "1"); } catch(e){} }
-  function maybeWelcome(){ if (!guideSeen() && !ui.modal){ ui.modal = {kind:"welcome"}; render(); } }
+  function maybeWelcome(){ if (WATCH) return; if (!guideSeen() && !ui.modal){ ui.modal = {kind:"welcome"}; render(); } }
   function viewWelcome(){
     return '<div class="scrim"><div class="sheet guide"><h3>Welcome to Paddle Palz \ud83c\udfbe</h3>' +
       '<p class="hint" style="margin:4px 0 0">Scores and tables for our padel nights. Everyone with the link sees the same scores, live.</p>' +
@@ -1331,6 +1450,7 @@ input:focus,select:focus{border-color:var(--accent)}
     if (d.mins!=null && t.hasAttribute("data-mins")){ S.matchMins=+d.mins; commit(); return; }
     if (d.deuce){ S.deuce=d.deuce; commit(); return; }
     if (d.third){ S.thirdSet=d.third; commit(); return; }
+    if (d.wmatch){ var wm=findMatch(d.wmatch); if (wm){ if (wm.live && wm.live.ts && clockOf(wm).up) firedUp[wm.id]=true; ui.liveSaveArmed=false; ui.modal={kind:"live", m:wm}; render(); } return; }
     if (d.session){ ui.modal={kind:"session", id:d.session, m:{id:null}}; ui.delArmed=false; render(); return; }
     if (d.minm!=null && t.hasAttribute("data-minm")){ S.minMatches=+d.minm; commit(); return; }
     if (d.tab){ ui.tab=d.tab; ui.copied=false; ui.copiedOverall=false; if (d.tab==="overall") fetchHistory(); render(); window.scrollTo(0,0); return; }
