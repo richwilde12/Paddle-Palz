@@ -156,6 +156,35 @@ input:focus,select:focus{border-color:var(--accent)}
 .ends{background:var(--ball);color:#14201a;border-radius:12px;padding:8px;text-align:center;font-weight:700;margin:4px 0}
 .lbar{display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:4px}
 .lbar .btn{padding:13px}
+.tbar{display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:16px;background:var(--card);border:1px solid var(--line);margin:4px 0 2px;transition:background .3s,border-color .3s}
+.tring{position:relative;width:58px;height:58px;flex:none}
+.tring svg{width:58px;height:58px;transform:rotate(-90deg)}
+.tring .trk{fill:none;stroke:var(--line);stroke-width:6}
+.tring .prog{fill:none;stroke:var(--accent);stroke-width:6;stroke-linecap:round;transition:stroke-dashoffset .25s linear,stroke .4s}
+.tring .ico{position:absolute;inset:0;display:grid;place-items:center;font-size:20px}
+.ttime{font-family:"Bricolage Grotesque",Inter,sans-serif;font-weight:800;font-size:34px;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.tlab{font-size:12px;color:var(--muted);margin-top:3px}
+.tmain{flex:1;min-width:0}
+.tctl{display:flex;gap:6px}
+.tctl button{height:40px;min-width:44px;padding:0 10px;border-radius:12px;border:1px solid var(--line);background:var(--bg);font-weight:700;cursor:pointer}
+.tctl button.go{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);padding:0 16px}
+.tbar.t-warn{border-color:#e0a100}.tbar.t-warn .prog{stroke:#e0a100}.tbar.t-warn .ttime{color:#c98f00}
+.tbar.t-crit{border-color:#d64545;animation:tpulse 1s ease-in-out infinite}.tbar.t-crit .prog{stroke:#d64545}.tbar.t-crit .ttime{color:#d64545}
+.tbar.t-paused .ttime{animation:tblink 1.2s steps(2) infinite}
+.tbar.t-up{background:#d64545;border-color:#d64545;color:#fff;animation:tflash .6s ease-in-out 4}
+.tbar.t-up .ttime,.tbar.t-up .tlab{color:#fff}.tbar.t-up .trk{stroke:rgba(255,255,255,.3)}.tbar.t-up .prog{stroke:#fff}
+.tbar.t-up .tctl button{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.4);color:#fff}
+@keyframes tpulse{0%,100%{box-shadow:0 0 0 0 rgba(214,69,69,.35)}50%{box-shadow:0 0 0 7px rgba(214,69,69,0)}}
+@keyframes tblink{50%{opacity:.35}}
+@keyframes tflash{50%{background:#ff7a59;border-color:#ff7a59}}
+.t10{position:fixed;inset:0;display:grid;place-items:center;pointer-events:none;z-index:31;font-family:"Bricolage Grotesque",Inter,sans-serif;font-weight:800;font-size:min(62vw,62vh);color:#d64545;opacity:0;transition:opacity .2s}
+.t10.on{opacity:.16}
+.t10.pop{animation:tpop .9s ease-out}
+@keyframes tpop{0%{transform:scale(1.25);opacity:.32}100%{transform:scale(1);opacity:.16}}
+.tup{background:#d64545;color:#fff;border-radius:12px;padding:9px 12px;text-align:center;font-weight:700;margin:4px 0}
+.tup small{display:block;font-weight:500;opacity:.9}
+.vs.live .clk{margin-left:6px;padding-left:6px;border-left:1px solid rgba(0,0,0,.2);font-variant-numeric:tabular-nums}
+.vs.live .clk.up{color:#b4231b}
 .rules h2{font-family:"Bricolage Grotesque",Inter,sans-serif;font-size:18px;margin:0 0 8px}
 .rules p{margin:0 0 8px}
 .rules ul{margin:0 0 4px;padding-left:20px}
@@ -177,7 +206,7 @@ input:focus,select:focus{border-color:var(--accent)}
 (function(){
   "use strict";
   var DEFAULT = {v:2,mode:"teams",name:"Paddle Palz",scoring:"games",pts:{w:3,d:1,l:0},courts:2,double:false,
-    ppm:24,rounds:0,rankBy:"total",minMatches:0,startedAt:0,deuce:"advantage",thirdSet:"set",
+    ppm:24,rounds:0,rankBy:"total",minMatches:0,startedAt:0,deuce:"advantage",thirdSet:"set",matchMins:0,
     teams:[{id:"t1",name:""},{id:"t2",name:""},{id:"t3",name:""},{id:"t4",name:""}],
     matches:[],started:false,updatedAt:0};
   /* =====================================================================
@@ -350,7 +379,8 @@ input:focus,select:focus{border-color:var(--accent)}
   function commitLive(m){
     cacheLocal();
     var lvp = null;
-    if (m.live){ lvp = {h:m.live.h||"", t:m.live.t||Date.now()}; if (m.live.st) lvp.st = 1; if (m.live.sp) lvp.sp = 1; }
+    if (m.live){ lvp = {h:m.live.h||"", t:m.live.t||Date.now()}; if (m.live.st) lvp.st = 1; if (m.live.sp) lvp.sp = 1;
+      ["ts","pt","pa","ex"].forEach(function(k){ if (m.live[k]) lvp[k] = m.live[k]; }); }
     enqueue({op:"live", id:m.id, live:lvp});
     render();
   }
@@ -627,7 +657,10 @@ input:focus,select:focus{border-color:var(--accent)}
           var big = setsMode() ? r2.sa+' – '+r2.sb : r2.ga+' – '+r2.gb;
           var sets = setsMode() ? '<span class="sets">'+m.score.a.map(function(v,i){return v+'-'+m.score.b[i];}).join(", ")+'</span>' : '';
           sc = '<span class="big">'+big+'</span>'+sets;
-        } else if (m.live && m.live.h){ sc = '<span class="vs live">'+esc(liveText(m))+'</span>'; }
+        } else if (m.live && (m.live.h || m.live.ts)){
+          var ck = (timerOn() && m.live.ts) ? clockOf(m) : null;
+          sc = '<span class="vs live">'+esc(m.live.h ? liveText(m) : "Started")+(ck?'<span class="clk'+(ck.up?' up':'')+'" data-clock="'+m.id+'">'+(ck.up?"Time!":fmtClock(ck.left))+'</span>':'')+'</span>';
+        }
         else sc = '<span class="vs">Add score</span>';
         h += '<button class="match" data-match="'+m.id+'"><div class="court">Court '+court+(waves>1?' · Slot '+wave:'')+'</div>' +
           '<div class="t '+(r2&&r2.w==="b"?"dim":"")+'">'+sideHTML(m,"a")+'</div><div class="sc">'+sc+'</div>' +
@@ -781,6 +814,14 @@ input:focus,select:focus{border-color:var(--accent)}
     return h;
   }
 
+  function timeSetting(dis){
+    var v=S.matchMins|0, presets=[0,10,15,20,25,30], custom = presets.indexOf(v)<0;
+    return '<div><label class="f">Time per match</label><div class="seg">' + presets.map(function(x){
+        return '<button data-mins="'+x+'" class="'+(v===x?"on":"")+'"'+dis+'>'+(x?x:"Off")+'</button>'; }).join("") + '</div>' +
+      '<div class="row" style="margin-top:8px"><input type="number" min="1" max="180" inputmode="numeric" data-field="mins" placeholder="Other (minutes)" value="'+(custom&&v?v:"")+'"'+dis+'></div>' +
+      '<div class="hint">'+(v ? 'A '+v+'-minute countdown runs on the live scoring screen. It starts with the first point'+(AM()?'':', and games count until time\u2019s up')+'.' : 'Add a countdown to live scoring.')+'</div></div>';
+  }
+
   function viewSetup(){
     var dis = readOnly ? " disabled" : "", am = AM(), who = am ? "Players" : "Teams";
     var h = '<div class="card stack">';
@@ -808,6 +849,7 @@ input:focus,select:focus{border-color:var(--accent)}
       h += '<div><label class="f">Points per match</label><div class="seg">' + [16,21,24,32,0].map(function(v){
         return '<button data-ppm="'+v+'" class="'+(S.ppm===v?"on":"")+'"'+dis+'>'+(v?v:"Timed")+'</button>'; }).join("") + '</div>' +
         '<div class="hint">'+(S.ppm?'Every rally counts; the two scores add up to '+S.ppm+'.':'No fixed total — enter whatever each pair scored when time runs out.')+'</div></div>';
+      if (!S.ppm) h += timeSetting(dis);
       h += '<div><label class="f">Rank players by</label><div class="seg">' +
         '<button data-rank="total" class="'+(S.rankBy!=="avg"?"on":"")+'"'+dis+'>Total points</button>' +
         '<button data-rank="avg" class="'+(S.rankBy==="avg"?"on":"")+'"'+dis+'>Average per match</button></div>' +
@@ -824,6 +866,7 @@ input:focus,select:focus{border-color:var(--accent)}
         '<button data-deuce="advantage" class="'+(S.deuce!=="golden"?"on":"")+'"'+dis+'>Advantage</button>' +
         '<button data-deuce="golden" class="'+(S.deuce==="golden"?"on":"")+'"'+dis+'>Golden point</button></div>' +
         '<div class="hint">Used by live scoring. Golden point: at 40\u201340 the next point wins the game.</div></div>';
+      if (S.scoring!=="sets") h += timeSetting(dis);
       if (S.scoring==="sets") h += '<div><label class="f">Deciding third set</label><div class="seg">' +
         '<button data-third="set" class="'+(S.thirdSet!=="mtb"?"on":"")+'"'+dis+'>Full set</button>' +
         '<button data-third="mtb" class="'+(S.thirdSet==="mtb"?"on":"")+'"'+dis+'>Match tiebreak (to 10)</button></div></div>';
@@ -941,6 +984,7 @@ input:focus,select:focus{border-color:var(--accent)}
   }
   function tennis(m){
     var lv=m.live||{}, h=lv.h||"", golden=S.deuce==="golden", sets3=S.scoring==="sets", mtbOpt=S.thirdSet==="mtb";
+    var timed = !sets3 && timerOn();
     var A=teamPlayers(m.a), B=teamPlayers(m.b);
     if (lv.sp){ A=[A[1],A[0]]; B=[B[1],B[0]]; }
     var pa0={n:A[0],t:"a"}, pa1={n:A[1],t:"a"}, pb0={n:B[0],t:"b"}, pb1={n:B[1],t:"b"};
@@ -967,7 +1011,8 @@ input:focus,select:focus{border-color:var(--accent)}
       } else if (won(R.pa,R.pb) || won(R.pb,R.pa)){
         if (R.pa>R.pb) R.ga++; else R.gb++;
         R.pa=R.pb=0; R.gp++;
-        if ((R.ga>=6||R.gb>=6) && Math.abs(R.ga-R.gb)>=2) endSet([R.ga,R.gb]);
+        if (timed){ R.ev = (R.ga+R.gb)%2===1 ? "game-ends" : "game"; }
+        else if ((R.ga>=6||R.gb>=6) && Math.abs(R.ga-R.gb)>=2) endSet([R.ga,R.gb]);
         else { if (R.ga===6 && R.gb===6) R.tb=true; R.ev = (R.ga+R.gb)%2===1 ? "game-ends" : "game"; }
       }
     }
@@ -1015,7 +1060,7 @@ input:focus,select:focus{border-color:var(--accent)}
     if (R.done){
       mid = '<div class="lmid"><b>Match complete \u2013 '+esc(tname(m[R.winner]))+' win</b>'+setsLine+'<div class="k">Tap undo if the last point was wrong.</div></div>';
     } else {
-      var what = R.mtb ? "Match tiebreak, first to 10" : R.tb ? "Tiebreak, first to 7" : (S.scoring==="sets" ? "Set "+(R.sets.length+1)+" \u00b7 " : "") + "Games "+R.ga+"\u2013"+R.gb;
+      var what = R.mtb ? "Match tiebreak, first to 10" : R.tb ? "Tiebreak, first to 7" : (S.scoring==="sets" ? "Set "+(R.sets.length+1)+" \u00b7 " : "") + "Games "+R.ga+"\u2013"+R.gb + (timerOn() && S.scoring!=="sets" ? " \u00b7 play until time" : "");
       var call = R.golden ? '<div class="k"><b>Golden point</b>: the receiving pair choose which side to receive on</div>'
         : R.deuce ? '<div class="k"><b>Deuce</b></div>' : '';
       mid = '<div class="lmid">'+what+setsLine +
@@ -1030,12 +1075,75 @@ input:focus,select:focus{border-color:var(--accent)}
     return '<div class="live-wrap">' +
       '<div class="live-top"><div class="ttl">Round '+m.r+' \u00b7 Court '+courtNo+'<span>'+(S.deuce==="golden"?"Golden point":"Advantage")+' \u00b7 '+(S.scoring==="sets"?"Best of 3"+(S.thirdSet==="mtb"?", match tiebreak":""):"One set")+'</span></div>' +
       '<button class="icon" data-act="close" aria-label="Close">\u00d7</button></div>' +
-      pre + panel("a") + mid + panel("b") +
+      timerBar(m) + pre + panel("a") + mid + panel("b") +
       '<div class="lbar"><button class="btn ghost" data-act="live-undo"'+(k&&!readOnly?"":" disabled")+'>\u21b6 Undo</button>' +
-      (R.done && canSave ? '<button class="btn" data-act="live-save">Save result</button>'
+      ((R.done || clockOf(m).up) && canSave ? '<button class="btn" data-act="live-save">Save result</button>'
         : canSave ? '<button class="btn '+(ui.liveSaveArmed?"armed":"ghost")+'" data-act="live-save">'+(ui.liveSaveArmed?"Tap again to save as final":"Stop &amp; save score so far")+'</button>'
         : '<button class="btn ghost" data-act="close">Close</button>') + '</div></div>';
   }
+
+  /* ---------- match clock ---------- */
+  function timerOn(){ return (S.matchMins|0)>0 && (AM() ? !S.ppm : S.scoring!=="sets"); }
+  function clockOf(m){
+    var lv=(m&&m.live)||{}, total=(S.matchMins|0)*60000+(lv.ex||0);
+    if (!timerOn() || !lv.ts) return {on:timerOn(), started:false, paused:false, total:total, left:total, up:false};
+    var now=Date.now(), el=now-lv.ts-(lv.pt||0)-(lv.pa? now-lv.pa : 0), left=Math.max(0,total-el);
+    return {on:true, started:true, paused:!!lv.pa, total:total, left:left, up:left<=0};
+  }
+  function fmtClock(ms){ var s=Math.ceil(ms/1000), m=Math.floor(s/60); return m+":"+("0"+(s%60)).slice(-2); }
+  function clockState(c){ return !c.started ? "" : c.up ? "t-up" : c.paused ? "t-paused" : c.left<=60000 ? "t-crit" : c.left<=120000 ? "t-warn" : ""; }
+  var RING = 2*Math.PI*25;
+  function timerBar(m){
+    var c=clockOf(m); if (!c.on) return "";
+    var frac = c.total ? c.left/c.total : 0;
+    var lab = !c.started ? (S.matchMins+" minute match \u2013 starts with the first point") : c.up ? "Time! Finish this point, then save" : c.paused ? "Paused" : "Time left";
+    var ctl = readOnly ? "" : !c.started ? '<button class="go" data-act="clock-start">\u25b6 Start</button>'
+      : '<button data-act="clock-pause" aria-label="'+(c.paused?"Resume":"Pause")+'">'+(c.paused?"\u25b6":"\u275a\u275a")+'</button><button data-act="clock-add" aria-label="Add a minute">+1</button>';
+    return '<div class="tbar '+clockState(c)+'" data-tbar="'+m.id+'">' +
+      '<div class="tring"><svg viewBox="0 0 58 58"><circle class="trk" cx="29" cy="29" r="25"/><circle class="prog" cx="29" cy="29" r="25" stroke-dasharray="'+RING.toFixed(1)+'" stroke-dashoffset="'+(RING*(1-frac)).toFixed(1)+'"/></svg><span class="ico">'+(c.up?"\u23f0":"\u23f1\ufe0f")+'</span></div>' +
+      '<div class="tmain"><div class="ttime" data-ttime>'+(c.up?"0:00":fmtClock(c.left))+'</div><div class="tlab" data-tlab>'+lab+'</div></div>' +
+      '<div class="tctl">'+ctl+'</div></div>' +
+      '<div class="t10" data-t10></div>';
+  }
+  // sounds and buzz (only after someone has tapped, as browsers require)
+  var actx=null;
+  function primeAudio(){ try { actx = actx || new (window.AudioContext||window.webkitAudioContext)(); if (actx.state==="suspended") actx.resume(); } catch(e){} }
+  function beep(freq, dur, vol, when){
+    if (!actx) return;
+    try { var t=actx.currentTime+(when||0), o=actx.createOscillator(), g=actx.createGain();
+      o.type="sine"; o.frequency.value=freq; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol||0.2,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+      o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t+dur+0.02); } catch(e){}
+  }
+  function buzz(p){ try { navigator.vibrate && navigator.vibrate(p); } catch(e){} }
+  var lastSec = {}, firedUp = {};
+  function tick(){
+    if (!timerOn()) return;
+    // match cards anywhere on the page
+    var cards = app.querySelectorAll("[data-clock]");
+    for (var i=0;i<cards.length;i++){ var cm=findMatch(cards[i].getAttribute("data-clock")); if(!cm) continue; var cc=clockOf(cm);
+      cards[i].textContent = cc.up ? "Time!" : fmtClock(cc.left); cards[i].className = "clk"+(cc.up?" up":""); }
+    // the live screen
+    if (!(ui.modal && ui.modal.kind==="live")) return;
+    var m=ui.modal.m, c=clockOf(m), bar=app.querySelector("[data-tbar]"); if (!bar) return;
+    var frac = c.total ? c.left/c.total : 0;
+    bar.className = "tbar "+clockState(c);
+    var tt=bar.querySelector("[data-ttime]"); if (tt) tt.textContent = c.up ? "0:00" : fmtClock(c.left);
+    var pr=bar.querySelector(".prog"); if (pr) pr.setAttribute("stroke-dashoffset",(RING*(1-frac)).toFixed(1));
+    var big=app.querySelector("[data-t10]"), sec=Math.ceil(c.left/1000);
+    if (big){
+      var show = c.started && !c.paused && !c.up && sec<=10;
+      if (show && big.textContent!==String(sec)){ big.textContent=sec; big.classList.remove("pop"); void big.offsetWidth; big.classList.add("pop"); }
+      big.classList.toggle("on", show);
+    }
+    if (c.started && !c.paused && !c.up && sec<=5 && lastSec[m.id]!==sec){ lastSec[m.id]=sec; beep(880,0.08,0.15); if (sec<=3) buzz(30); }
+    if (c.up && !firedUp[m.id]){
+      firedUp[m.id]=true;
+      beep(660,0.25,0.3,0); beep(660,0.25,0.3,0.35); beep(990,0.6,0.35,0.7);
+      buzz([250,120,250,120,400]);
+      render();
+    }
+  }
+  setInterval(tick, 250);
 
   function viewLive(){
     if (!AM()) return viewLiveTeams();
@@ -1063,7 +1171,7 @@ input:focus,select:focus{border-color:var(--accent)}
     return '<div class="live-wrap">' +
       '<div class="live-top"><div class="ttl">Round '+m.r+' · Court '+courtNo+'<span>Live score – everyone sees it as you tap</span></div>' +
       '<button class="icon" data-act="close" aria-label="Close">×</button></div>' +
-      panel("a") + mid + panel("b") +
+      timerBar(m) + panel("a") + mid + panel("b") +
       '<div class="lbar"><button class="btn ghost" data-act="live-undo"'+(k&&!readOnly?"":" disabled")+'>↶ Undo</button>' +
       (canSave ? '<button class="btn" data-act="live-save">Save result '+L.a+'–'+L.b+'</button>'
                : '<button class="btn ghost" data-act="close">'+(ppm?'Close (score is kept)':'Close')+'</button>') + '</div>' +
@@ -1126,6 +1234,7 @@ input:focus,select:focus{border-color:var(--accent)}
       '<li>A banner tells you when to <b>change ends</b> at halfway.</li>' +
       '<li>When the last point is played, tap <b>Save result</b>. You can close the screen mid-match and the score is kept.</li></ul>' +
       '<p><b>Fixed teams</b> use proper padel scoring when scored live: 15\u201330\u201340, deuce (or golden point), games, sets and tiebreaks. Just tap the pair that wins each rally. The app works out the score, who serves next and when to change ends. Before the first point you can swap which pair, and which player, serves first. If you run out of time, tap <b>Stop &amp; save score so far</b> twice.</p>' +
+      '<p><b>Match clock:</b> if the organiser sets a <b>Time per match</b> (for one-set or timed games), a countdown appears at the top of the live screen. It starts with the first point. Use \u275a\u275a to pause it for a break and <b>+1</b> to add a minute. The ring turns amber with 2 minutes left and red with 1. The last 10 seconds count down across the screen, and at zero your phone beeps and buzzes. Finish the point in play, then tap <b>Save result</b>.</p>' +
       '<p><b>Made a mistake?</b> Tap a finished match to change the score, or tap <b>Clear result</b>.</p>'],
     ["tables","Today and Overall tables",
       '<p><b>Today</b> is this session only. In Americano, both players in a pair get the pair\u2019s points. Win 15\u20139 and you each add 15. P = played, W = won, +/\u2212 = points won minus points lost.</p>' +
@@ -1219,6 +1328,7 @@ input:focus,select:focus{border-color:var(--accent)}
     if (d.act!=="live-save" && ui.liveSaveArmed){ ui.liveSaveArmed=false; }
     if (d.act!=="del-session" && ui.delArmed){ ui.delArmed=false; }
     if (d.gsec){ ui.guideOpen = ui.guideOpen || {}; ui.guideOpen[d.gsec] = !ui.guideOpen[d.gsec]; render(); return; }
+    if (d.mins!=null && t.hasAttribute("data-mins")){ S.matchMins=+d.mins; commit(); return; }
     if (d.deuce){ S.deuce=d.deuce; commit(); return; }
     if (d.third){ S.thirdSet=d.third; commit(); return; }
     if (d.session){ ui.modal={kind:"session", id:d.session, m:{id:null}}; ui.delArmed=false; render(); return; }
@@ -1226,7 +1336,8 @@ input:focus,select:focus{border-color:var(--accent)}
     if (d.tab){ ui.tab=d.tab; ui.copied=false; ui.copiedOverall=false; if (d.tab==="overall") fetchHistory(); render(); window.scrollTo(0,0); return; }
     if (d.match){
       var m = findMatch(d.match), sm = setsMode();
-      if (!m.score && m.live && m.live.h){ ui.modal = {kind:"live", m:m}; render(); return; }
+      if (m.live && m.live.ts && clockOf(m).up) firedUp[m.id]=true;
+      if (!m.score && m.live && (m.live.h || m.live.ts)){ ui.modal = {kind:"live", m:m}; render(); return; }
       var a = m.score ? m.score.a.slice() : (sm?[]:[0]);
       var b = m.score ? m.score.b.slice() : (sm?[]:[0]);
       if (!m.score && AM() && S.ppm){ a=[Math.ceil(S.ppm/2)]; b=[Math.floor(S.ppm/2)]; }
@@ -1236,6 +1347,11 @@ input:focus,select:focus{border-color:var(--accent)}
       var mm=ui.modal.m, LL=liveOf(mm);
       if (AM() ? (S.ppm && LL.a+LL.b>=S.ppm) : tennis(mm).done) return;
       mm.live = Object.assign({}, mm.live||{}, {h:LL.h+d.live, t:Date.now()});
+      if (timerOn()){
+        primeAudio();
+        if (!mm.live.ts){ mm.live.ts=Date.now(); mm.live.pt=0; mm.live.pa=0; }
+        else if (mm.live.pa){ mm.live.pt=(mm.live.pt||0)+(Date.now()-mm.live.pa); mm.live.pa=0; }
+      }
       try { navigator.vibrate && navigator.vibrate(12); } catch(e){}
       commitLive(mm); return;
     }
@@ -1296,8 +1412,15 @@ input:focus,select:focus{border-color:var(--accent)}
       case "live-undo":
         var um=ui.modal.m, uh=liveOf(um).h;
         um.live = Object.assign({}, um.live||{}, {h:uh.slice(0,-1), t:Date.now()});
-        if (!um.live.h && !um.live.st && !um.live.sp) um.live = null;
+        if (!um.live.h && !um.live.st && !um.live.sp && !um.live.ts) um.live = null;
         commitLive(um); break;
+      case "clock-start": case "clock-pause": case "clock-add":
+        primeAudio();
+        var km=ui.modal.m, kl=Object.assign({h:""}, km.live||{}), now=Date.now();
+        if (d.act==="clock-start"){ kl.ts=now; kl.pt=0; kl.pa=0; firedUp[km.id]=false; }
+        else if (d.act==="clock-pause"){ if (kl.pa){ kl.pt=(kl.pt||0)+(now-kl.pa); kl.pa=0; } else kl.pa=now; }
+        else { kl.ex=(kl.ex||0)+60000; firedUp[km.id]=false; }
+        kl.t=now; km.live=kl; commitLive(km); break;
       case "live-swap-team": case "live-swap-order":
         var sm2=ui.modal.m; sm2.live = Object.assign({h:""}, sm2.live||{}, {t:Date.now()});
         if (d.act==="live-swap-team") sm2.live.st = sm2.live.st ? 0 : 1; else sm2.live.sp = sm2.live.sp ? 0 : 1;
@@ -1307,7 +1430,7 @@ input:focus,select:focus{border-color:var(--accent)}
         if (AM()){ var L=liveOf(lm); lm.score={a:[L.a],b:[L.b]}; }
         else {
           var TR=tennis(lm), sc2=tennisScore(TR); if (!sc2) break;
-          if (!TR.done && !ui.liveSaveArmed){ ui.liveSaveArmed=true; render(); break; }
+          if (!TR.done && !clockOf(lm).up && !ui.liveSaveArmed){ ui.liveSaveArmed=true; render(); break; }
           ui.liveSaveArmed=false; lm.score=sc2;
         }
         lm.live=null; ui.modal=null; commitScore(lm); break;
@@ -1328,6 +1451,7 @@ input:focus,select:focus{border-color:var(--accent)}
     if (d.team){ var tm=team(d.team); if(tm){ tm.name=el.value.trim(); commit(); } }
     else if (d.field==="name"){ S.name=el.value.trim()||"Paddle Palz"; commit(); }
     else if (d.field==="courts"){ S.courts=Math.max(1,Math.min(20,parseInt(el.value,10)||1)); commit(); }
+    else if (d.field==="mins"){ S.matchMins=Math.max(0,Math.min(180,parseInt(el.value,10)||0)); commit(); }
     else if (d.field==="rounds"){ S.rounds=Math.max(0,Math.min(60,parseInt(el.value,10)||0)); commit(); }
     else if (d.pts){ S.pts[d.pts]=parseInt(el.value,10)||0; commit(); }
   });
