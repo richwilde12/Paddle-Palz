@@ -33,6 +33,9 @@ h1{font-family:"Bricolage Grotesque",Inter,sans-serif;font-weight:800;font-size:
 .sub{color:var(--muted);font-size:13px;margin-top:4px}
 .status{font-size:12px;color:var(--muted);white-space:nowrap}
 .status.warn{color:var(--loss)}
+button.status{background:none;border:0;padding:4px 0;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+.diag dt{font-size:12px;color:var(--muted);font-weight:600;margin-top:10px}
+.diag dd{margin:2px 0 0;font-size:13px;overflow-wrap:anywhere}
 .tabs{position:sticky;top:0;z-index:5;display:flex;gap:4px;padding:4px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:14px}
 .tabs button{flex:1;border:0;background:transparent;padding:9px 6px;border-radius:9px;font-weight:600;color:var(--muted);cursor:pointer}
 .tabs button.on{background:var(--accent);color:var(--accent-ink)}
@@ -211,9 +214,20 @@ input:focus,select:focus{border-color:var(--accent)}
     clearTimeout(flushTimer);
     flushTimer = setTimeout(flush, op.op==="live" ? 250 : 0);
   }
+  var diag = {get:"Not tried yet", post:"Nothing sent yet", getAt:0, postAt:0};
+  function readJSON(r){
+    return r.text().then(function(t){
+      try { return JSON.parse(t); }
+      catch(e){
+        var msg = t.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/gi," ").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim().slice(0,200);
+        throw new Error("Got a web page instead of data (HTTP "+r.status+"): "+(msg||"empty"));
+      }
+    });
+  }
+  function errText(e){ return (e && e.message) ? e.message : String(e); }
   function post(body){
     return fetch(SHEET_API_URL.trim(), {method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:JSON.stringify(body)})
-      .then(function(r){ return r.json(); });
+      .then(readJSON);
   }
   function flush(){
     if (inflight || !queue.length) return;
@@ -222,11 +236,26 @@ input:focus,select:focus{border-color:var(--accent)}
     if (op.op!=="live") body.sheet = sheetSummary();
     post(body).then(function(res){
       inflight = null;
-      if (!res || !res.ok){ net = "error"; saveQueue(); renderStatus(); return; }
+      diag.postAt = Date.now();
+      if (!res || !res.ok){
+        var why = (res && res.error) || "unknown error";
+        diag.post = "Sheet replied with an error: " + why + " (" + op.op + ")";
+        if (/No tournament yet/i.test(why)){
+          // sheet is empty: send the whole tournament first (it already includes this change)
+          queue = queue.filter(function(q){ return q.op!=="setAll"; });
+          queue.unshift({op:"setAll", state:JSON.parse(JSON.stringify(S))});
+          saveQueue(); setTimeout(flush, 200); return;
+        }
+        net = "error"; saveQueue(); renderStatus();
+        if (queue.length) setTimeout(flush, 1500);
+        return;
+      }
+      diag.post = "OK \u2013 saved (" + op.op + ")";
       net = "live"; ver = res.v; saveQueue();
       if (!queue.length && res.state) applyRemote(res.state);
       if (queue.length) flush(); else renderStatus();
-    }).catch(function(){
+    }).catch(function(e){
+      diag.post = "Couldn\u2019t save: " + errText(e); diag.postAt = Date.now();
       if (!(op.op==="live" && queue.some(function(q){return sameKey(q,op);}))) queue.unshift(op);
       inflight = null; net = "offline"; saveQueue(); renderStatus();
       setTimeout(flush, 4000);
@@ -238,8 +267,10 @@ input:focus,select:focus{border-color:var(--accent)}
     if (!USE_API) return;
     if (document.hidden){ pollTimer = setTimeout(poll, next); return; }
     fetch(SHEET_API_URL.trim() + "?t=" + encodeURIComponent(TID) + "&since=" + ver, {cache:"no-store"})
-      .then(function(r){ return r.json(); })
+      .then(readJSON)
       .then(function(res){
+        diag.getAt = Date.now();
+        diag.get = (res && res.ok) ? "OK \u2013 sheet version " + res.v + (res.state===null ? " (empty sheet)" : "") : "Sheet replied with an error: " + ((res && res.error) || "unknown");
         if (!res || res.error){ net = "error"; if (!loaded){ loaded = true; render(); } else renderStatus(); return; }
         net = "live";
         var first = !loaded;
@@ -247,17 +278,19 @@ input:focus,select:focus{border-color:var(--accent)}
           if (res.state){
             if (res.v > ver && !inflight && !queue.length){ ver = res.v; applyRemote(res.state); }
           } else if (first){
-            enqueue({op:"setAll", state:JSON.parse(JSON.stringify(S))}); // empty sheet: upload what this phone has
+            // empty sheet: upload what this phone has, ahead of any older waiting changes
+            queue = [{op:"setAll", state:JSON.parse(JSON.stringify(S))}]; saveQueue(); setTimeout(flush, 0);
           }
         }
         if (first){ loaded = true; ui.tab = S.started ? "matches" : "setup"; render(); } else renderStatus();
+        if (queue.length && !inflight) flush();
       })
-      .catch(function(){ net = loaded ? "offline" : "error"; if (!loaded){ loaded = true; render(); } else renderStatus(); })
+      .catch(function(e){ diag.get = "Couldn\u2019t read: " + errText(e); diag.getAt = Date.now(); net = loaded ? "offline" : "error"; if (!loaded){ loaded = true; render(); } else renderStatus(); })
       .then(function(){ pollTimer = setTimeout(poll, next); });
   }
   function applyRemote(v){
     S = normalise(v); cacheLocal();
-    if (ui.modal){ // keep an open score sheet pointing at the fresh match object
+    if (ui.modal && ui.modal.kind!=="diag"){ // keep an open score sheet pointing at the fresh match object
       var fresh = S.matches.filter(function(m){return m.id===ui.modal.m.id;})[0];
       if (fresh && !(ui.modal.kind==="live" && fresh.score)) ui.modal.m = fresh; else ui.modal = null;
     }
@@ -498,7 +531,7 @@ input:focus,select:focus{border-color:var(--accent)}
     var st = statusText(), who = AM() ? "players" : "teams";
     var h = '<div class="wrap"><header><div><h1>'+esc(S.name||"Round Robin")+'</h1>' +
       '<div class="sub">'+(S.started? played+' of '+total+' matches played · '+S.teams.length+' '+who+(AM()?' · Americano':'') : 'Set up your '+who+' to get started')+'</div></div>' +
-      '<div id="status" class="status '+st[1]+'">'+esc(st[0])+'</div></header>';
+      '<button id="status" data-act="diag" class="status '+st[1]+'">'+esc(st[0])+'</button></header>';
     if (readOnly) h += '<div class="banner">You can view this tracker but not edit it.</div>';
     if (ui.tab==="rules" && !AM()) ui.tab="setup";
     var tabs = AM() ? ["matches","table","rules","setup"] : ["matches","table","setup"];
@@ -511,7 +544,8 @@ input:focus,select:focus{border-color:var(--accent)}
     else if (ui.tab==="rules") h += viewRules();
     else h += viewSetup();
     h += '</div>';
-    if (ui.modal && ui.modal.kind==="live") h += viewLive();
+    if (ui.modal && ui.modal.kind==="diag") h += viewDiag();
+    else if (ui.modal && ui.modal.kind==="live") h += viewLive();
     else if (ui.modal) h += viewModal();
     keepAwake(!!(ui.modal && ui.modal.kind==="live"));
     app.innerHTML = h;
@@ -765,6 +799,26 @@ input:focus,select:focus{border-color:var(--accent)}
       '</div>';
   }
 
+  function ago(t){ if(!t) return ""; var s=Math.round((Date.now()-t)/1000); return " \u00b7 "+(s<60? s+"s ago" : Math.round(s/60)+" min ago"); }
+  function viewDiag(){
+    var url = SHEET_API_URL.trim();
+    var urlNote = !url ? "Not set \u2013 paste your /exec URL into SHEET_API_URL in index.html."
+      : !USE_API ? "This doesn\u2019t look like an Apps Script web app URL. It should start https://script.google.com/macros/s/"
+      : /\/dev(\?|$)/.test(url) ? "This is the /dev test URL \u2013 use the /exec URL from Deploy \u2192 Manage deployments."
+      : !/\/exec(\?|$)/.test(url) ? "This should end in /exec." : "Looks right.";
+    var pend = (inflight?1:0) + queue.length;
+    return '<div class="scrim" data-act="close-bg"><div class="sheet"><h3>Connection</h3><dl class="diag">' +
+      '<dt>Status</dt><dd>'+esc(statusText()[0])+'</dd>' +
+      '<dt>Sheet URL</dt><dd>'+esc(url ? url.slice(0,48)+(url.length>48?"\u2026":"") : "(empty)")+'<br><span class="hint">'+esc(urlNote)+'</span></dd>' +
+      '<dt>Reading from the sheet</dt><dd>'+esc(diag.get)+esc(ago(diag.getAt))+'</dd>' +
+      '<dt>Saving to the sheet</dt><dd>'+esc(diag.post)+esc(ago(diag.postAt))+'</dd>' +
+      '<dt>Changes waiting to send</dt><dd>'+pend+'</dd>' +
+      '<dt>Tournament id</dt><dd>'+esc(TID)+'</dd></dl>' +
+      '<div class="actions"><button class="btn" data-act="diag-retry">Retry now</button>' +
+      '<button class="btn ghost" data-act="diag-copy">'+(ui.diagCopied?"Copied \u2713":"Copy these details")+'</button>' +
+      '<button class="btn ghost" data-act="close">Close</button></div></div></div>';
+  }
+
   function viewModal(){
     var md = ui.modal, m = md.m, ro = readOnly?" disabled":"";
     var h = '<div class="scrim" data-act="close-bg"><div class="sheet"><h3>Round '+m.r+'</h3>' +
@@ -855,6 +909,12 @@ input:focus,select:focus{border-color:var(--accent)}
         else { ui.resetArmed=false; S.matches=[]; S.started=false; ui.tab="setup"; commit(); }
         break;
       case "close": case "close-bg": ui.modal=null; render(); break;
+      case "diag": ui.modal = {kind:"diag", m:{id:null}}; ui.diagCopied=false; render(); break;
+      case "diag-retry": net = USE_API ? "connecting" : "local"; poll(); flush(); setTimeout(render, 2500); render(); break;
+      case "diag-copy":
+        var dtxt = "URL: "+SHEET_API_URL.trim()+"\nRead: "+diag.get+"\nSave: "+diag.post+"\nWaiting: "+((inflight?1:0)+queue.length)+"\nStatus: "+statusText()[0];
+        try { navigator.clipboard.writeText(dtxt).then(function(){ui.diagCopied=true;render();}).catch(function(){fallbackCopy(dtxt);}); } catch(e){ fallbackCopy(dtxt); }
+        break;
       case "live-open": ui.modal = {kind:"live", m:ui.modal.m}; render(); break;
       case "live-undo": var um=ui.modal.m, uh=liveOf(um).h; um.live = uh.length>1 ? {h:uh.slice(0,-1), t:Date.now()} : null; commitLive(um); break;
       case "live-save":
