@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PaddlePalz</title>
+<title>Paddle Palz</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon.ico" sizes="32x32">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#1f7a4d">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Padel">
+<meta name="apple-mobile-web-app-title" content="Paddle Palz">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style id="app-css">
@@ -33,20 +33,20 @@ h1{font-family:"Bricolage Grotesque",Inter,sans-serif;font-weight:800;font-size:
 .sub{color:var(--muted);font-size:13px;margin-top:4px}
 .status{font-size:12px;color:var(--muted);white-space:nowrap}
 .status.warn{color:var(--loss)}
-button.status{backg:none;border:0;padding:4px 0;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+button.status{background:none;border:0;padding:4px 0;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
 .diag dt{font-size:12px;color:var(--muted);font-weight:600;margin-top:10px}
 .diag dd{margin:2px 0 0;font-size:13px;overflow-wrap:anywhere}
-.tabs{position:sticky;top:0;z-index:5;display:flex;gap:4px;padding:4px;backg:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:14px}
-.tabs button{flex:1;min-width:0;border:0;backg:transparent;padding:9px 2px;font-size:14px;border-radius:9px;font-weight:600;color:var(--muted);cursor:pointer}
-.tabs button.on{backg:var(--accent);color:var(--accent-ink)}
-.card{backg:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+.tabs{position:sticky;top:0;z-index:5;display:flex;gap:4px;padding:4px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:14px}
+.tabs button{flex:1;min-width:0;border:0;background:transparent;padding:9px 2px;font-size:14px;border-radius:9px;font-weight:600;color:var(--muted);cursor:pointer}
+.tabs button.on{background:var(--accent);color:var(--accent-ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
 .stack>*+*{margin-top:14px}
-.progress{height:6px;border-radius:9px;backg:var(--line);overflow:hidden;margin-top:8px}
-.progress i{display:block;height:100%;backg:var(--accent);border-radius:9px;transition:width .3s}
-.-h{display:flex;justify-content:space-between;align-items:baseline;margin:18px 2px 8px}
-.-h h2{font-family:"Bricolage Grotesque",Inter,sans-serif;font-size:17px;margin:0}
-.-h span{font-size:12px;color:var(--muted)}
-.match{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;width:100%;text-align:left;backg:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;margin-bottom:8px}
+.progress{height:6px;border-radius:9px;background:var(--line);overflow:hidden;margin-top:8px}
+.progress i{display:block;height:100%;background:var(--accent);border-radius:9px;transition:width .3s}
+.round-h{display:flex;justify-content:space-between;align-items:baseline;margin:18px 2px 8px}
+.round-h h2{font-family:"Bricolage Grotesque",Inter,sans-serif;font-size:17px;margin:0}
+.round-h span{font-size:12px;color:var(--muted)}
+.match{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;margin-bottom:8px}
 .match:active{transform:scale(.99)}
 .match .t{font-weight:600;overflow-wrap:anywhere}
 .match .t.b{text-align:right}
@@ -159,7 +159,7 @@ input:focus,select:focus{border-color:var(--accent)}
 <script id="app-src">
 (function(){
   "use strict";
-  var DEFAULT = {v:2,mode:"teams",name:"Paddle Round Robin",scoring:"games",pts:{w:3,d:1,l:0},courts:2,double:false,
+  var DEFAULT = {v:2,mode:"teams",name:"Paddle Palz",scoring:"games",pts:{w:3,d:1,l:0},courts:2,double:false,
     ppm:24,rounds:0,rankBy:"total",minMatches:0,startedAt:0,
     teams:[{id:"t1",name:""},{id:"t2",name:""},{id:"t3",name:""},{id:"t4",name:""}],
     matches:[],started:false,updatedAt:0};
@@ -175,8 +175,10 @@ input:focus,select:focus{border-color:var(--accent)}
   var LSKEY = "rr-tracker-state" + (TID==="main" ? "" : "-"+TID);
   var local = null;
   try { local = JSON.parse(localStorage.getItem(LSKEY)); } catch(e){}
+  function brand(n){ return (!n || n==="Paddle Round Robin") ? "Paddle Palz" : n; }
   function normalise(v){
     v = v || {};
+    v.name = brand(v.name);
     Object.keys(DEFAULT).forEach(function(k){ if (v[k]===undefined) v[k]=JSON.parse(JSON.stringify(DEFAULT[k])); });
     if (!Array.isArray(v.matches)) v.matches = Object.keys(v.matches||{}).map(function(k){ return v.matches[k]; });
     v.matches.forEach(function(m){ if (!m.score) m.score=null; });
@@ -362,7 +364,7 @@ input:focus,select:focus{border-color:var(--accent)}
     var overall = [["Pos","Player","Sessions","Played","Won","Drawn","Lost","+/-","Total points","Average"]];
     overallRows().forEach(function(x,i){ overall.push([x.qualified? i+1 : "\u2013", x.name, x.sessions, x.p, x.w, x.d, x.l, x.diff, x.pf, Math.round(x.avg*10)/10]); });
     var all = [["Date","Session","Round","Side A","Side B","Score A","Score B"]];
-    H.sessions.forEach(function(ss){ ss.matches.forEach(function(m){ all.push([ss.date, ss.name, m.r, m.a.join(" & "), m.b.join(" & "), m.sa, m.sb]); }); });
+    H.sessions.forEach(function(ss){ ss.matches.forEach(function(m){ all.push([ss.date, brand(ss.name), m.r, m.a.join(" & "), m.b.join(" & "), m.sa, m.sb]); }); });
     return {name:S.name, results:results, table:table, overall:overall, allMatches:all};
   }
   function statusText(){
@@ -552,7 +554,7 @@ input:focus,select:focus{border-color:var(--accent)}
   function render(){
     var played = S.matches.filter(function(m){return m.score;}).length, total=S.matches.length;
     var st = statusText(), who = AM() ? "players" : "teams";
-    var h = '<div class="wrap"><header><div><h1>'+esc(S.name||"Palz")+'</h1>' +
+    var h = '<div class="wrap"><header><div><h1>'+esc(S.name||"Paddle Palz")+'</h1>' +
       '<div class="sub">'+(S.started? played+' of '+total+' matches played · '+S.teams.length+' '+who+(AM()?' · Americano':'') : 'Set up your '+who+' to get started')+'</div></div>' +
       '<button id="status" data-act="diag" class="status '+st[1]+'">'+esc(st[0])+'</button></header>';
     if (readOnly) h += '<div class="banner">You can view this tracker but not edit it.</div>';
@@ -690,7 +692,7 @@ input:focus,select:focus{border-color:var(--accent)}
     if (!H.sessions.length) h += '<div class="hint" style="margin:0 2px">None saved yet.</div>';
     H.sessions.slice().sort(function(a,b){ return a.date<b.date?1:a.date>b.date?-1:0; }).forEach(function(ss){
       var top = sessionRows(ss)[0];
-      h += '<button class="match" data-session="'+ss.id+'" style="grid-template-columns:1fr auto"><div class="t">'+esc(ss.name)+'<small style="color:var(--muted);font-weight:500">'+esc(niceDate(ss.date))+' \u00b7 '+ss.matches.length+' matches \u00b7 '+ss.players.length+' '+(ss.mode==="americano"?"players":"teams")+'</small></div>' +
+      h += '<button class="match" data-session="'+ss.id+'" style="grid-template-columns:1fr auto"><div class="t">'+esc(brand(ss.name))+'<small style="color:var(--muted);font-weight:500">'+esc(niceDate(ss.date))+' \u00b7 '+ss.matches.length+' matches \u00b7 '+ss.players.length+' '+(ss.mode==="americano"?"players":"teams")+'</small></div>' +
         '<div class="sc" style="text-align:right">'+(top?'<span class="sets" style="margin:0">Winner</span>\ud83c\udfc6 '+esc(top.name):'')+'</div></button>';
     });
     return h;
@@ -699,7 +701,7 @@ input:focus,select:focus{border-color:var(--accent)}
     var ss = H.sessions.filter(function(x){return x.id===ui.modal.id;})[0];
     if (!ss) return '';
     var rows = sessionRows(ss), am = ss.mode==="americano";
-    var h = '<div class="scrim" data-act="close-bg"><div class="sheet"><h3>'+esc(ss.name)+'</h3><div class="hint" style="margin:0 0 10px">'+esc(niceDate(ss.date))+' \u00b7 '+ss.matches.length+' matches'+(am&&ss.ppm?' \u00b7 '+ss.ppm+' points':'')+'</div>' +
+    var h = '<div class="scrim" data-act="close-bg"><div class="sheet"><h3>'+esc(brand(ss.name))+'</h3><div class="hint" style="margin:0 0 10px">'+esc(niceDate(ss.date))+' \u00b7 '+ss.matches.length+' matches'+(am&&ss.ppm?' \u00b7 '+ss.ppm+' points':'')+'</div>' +
       '<table><thead><tr><th></th><th class="l">'+(am?"Player":"Team")+'</th><th>P</th><th>W</th><th>+/\u2212</th><th>Avg</th><th>'+(am?"Pts":"Pts")+'</th></tr></thead><tbody>';
     rows.forEach(function(x,i){
       h += '<tr class="'+(i===0?"lead":"")+'"><td class="pos"><span>'+(i+1)+'</span></td><td class="l name">'+esc(x.name)+'</td><td>'+x.p+'</td><td>'+x.w+'</td><td>'+sign(x.diff)+'</td><td>'+x.avg.toFixed(1)+'</td><td class="pts">'+(am?x.pf:x.lp)+'</td></tr>';
@@ -1089,7 +1091,7 @@ input:focus,select:focus{border-color:var(--accent)}
   app.addEventListener("change", function(e){
     var el=e.target, d=el.dataset;
     if (d.team){ var tm=team(d.team); if(tm){ tm.name=el.value.trim(); commit(); } }
-    else if (d.field==="name"){ S.name=el.value.trim()||"Round Robin"; commit(); }
+    else if (d.field==="name"){ S.name=el.value.trim()||"Paddle Palz"; commit(); }
     else if (d.field==="courts"){ S.courts=Math.max(1,Math.min(20,parseInt(el.value,10)||1)); commit(); }
     else if (d.field==="rounds"){ S.rounds=Math.max(0,Math.min(60,parseInt(el.value,10)||0)); commit(); }
     else if (d.pts){ S.pts[d.pts]=parseInt(el.value,10)||0; commit(); }
