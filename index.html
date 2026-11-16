@@ -177,7 +177,7 @@ input:focus,select:focus{border-color:var(--accent)}
 (function(){
   "use strict";
   var DEFAULT = {v:2,mode:"teams",name:"Paddle Palz",scoring:"games",pts:{w:3,d:1,l:0},courts:2,double:false,
-    ppm:24,rounds:0,rankBy:"total",minMatches:0,startedAt:0,
+    ppm:24,rounds:0,rankBy:"total",minMatches:0,startedAt:0,deuce:"advantage",thirdSet:"set",
     teams:[{id:"t1",name:""},{id:"t2",name:""},{id:"t3",name:""},{id:"t4",name:""}],
     matches:[],started:false,updatedAt:0};
   /* =====================================================================
@@ -349,7 +349,9 @@ input:focus,select:focus{border-color:var(--accent)}
   // live point-by-point score: a string of rally winners, e.g. "aab..."
   function commitLive(m){
     cacheLocal();
-    enqueue({op:"live", id:m.id, live:m.live ? {h:m.live.h, t:m.live.t} : null});
+    var lvp = null;
+    if (m.live){ lvp = {h:m.live.h||"", t:m.live.t||Date.now()}; if (m.live.st) lvp.st = 1; if (m.live.sp) lvp.sp = 1; }
+    enqueue({op:"live", id:m.id, live:lvp});
     render();
   }
   function commitNewMatches(list){
@@ -367,7 +369,7 @@ input:focus,select:focus{border-color:var(--accent)}
         var res = result(m), lv = (!m.score && m.live && m.live.h) ? liveOf(m) : null;
         results.push([m.r, (idx%courts)+1, side(m,"a"), side(m,"b"),
           res ? (setsMode()? m.score.a.join(" / ") : res.ga) : "", res ? (setsMode()? m.score.b.join(" / ") : res.gb) : "",
-          res ? "Played" : lv ? "Live "+lv.a+"-"+lv.b : "To play"]);
+          res ? "Played" : lv ? "Live "+liveText(m) : "To play"]);
       });
     });
     var table;
@@ -625,7 +627,7 @@ input:focus,select:focus{border-color:var(--accent)}
           var big = setsMode() ? r2.sa+' – '+r2.sb : r2.ga+' – '+r2.gb;
           var sets = setsMode() ? '<span class="sets">'+m.score.a.map(function(v,i){return v+'-'+m.score.b[i];}).join(", ")+'</span>' : '';
           sc = '<span class="big">'+big+'</span>'+sets;
-        } else if (m.live && m.live.h){ var lv=liveOf(m); sc = '<span class="vs live">'+lv.a+' – '+lv.b+'</span>'; }
+        } else if (m.live && m.live.h){ sc = '<span class="vs live">'+esc(liveText(m))+'</span>'; }
         else sc = '<span class="vs">Add score</span>';
         h += '<button class="match" data-match="'+m.id+'"><div class="court">Court '+court+(waves>1?' · Slot '+wave:'')+'</div>' +
           '<div class="t '+(r2&&r2.w==="b"?"dim":"")+'">'+sideHTML(m,"a")+'</div><div class="sc">'+sc+'</div>' +
@@ -818,6 +820,13 @@ input:focus,select:focus{border-color:var(--accent)}
         h += '<div class="grid2"><div><label class="f">Courts</label><input type="number" min="1" max="20" inputmode="numeric" data-field="courts" value="'+S.courts+'"></div>' +
           '<div><label class="f">Play each team</label><div class="seg"><button data-double="0" class="'+(!S.double?"on":"")+'">Once</button><button data-double="1" class="'+(S.double?"on":"")+'">Twice</button></div></div></div>';
       }
+      h += '<div><label class="f">At 40\u201340 (deuce)</label><div class="seg">' +
+        '<button data-deuce="advantage" class="'+(S.deuce!=="golden"?"on":"")+'"'+dis+'>Advantage</button>' +
+        '<button data-deuce="golden" class="'+(S.deuce==="golden"?"on":"")+'"'+dis+'>Golden point</button></div>' +
+        '<div class="hint">Used by live scoring. Golden point: at 40\u201340 the next point wins the game.</div></div>';
+      if (S.scoring==="sets") h += '<div><label class="f">Deciding third set</label><div class="seg">' +
+        '<button data-third="set" class="'+(S.thirdSet!=="mtb"?"on":"")+'"'+dis+'>Full set</button>' +
+        '<button data-third="mtb" class="'+(S.thirdSet==="mtb"?"on":"")+'"'+dis+'>Match tiebreak (to 10)</button></div></div>';
       h += '<div><label class="f">Points for a win / draw / loss</label><div class="grid3">' +
         ['w','d','l'].map(function(k){return '<input type="number" inputmode="numeric" data-pts="'+k+'" value="'+S.pts[k]+'"'+dis+'>';}).join("") + '</div></div>';
     }
@@ -925,7 +934,111 @@ input:focus,select:focus{border-color:var(--accent)}
     } catch(e){}
   }
   document.addEventListener("visibilitychange", function(){ if (document.visibilityState==="visible" && ui.modal && ui.modal.kind==="live"){ wakeLock=null; keepAwake(true); } });
+  /* ---------- fixed teams: padel scoring, point by point ---------- */
+  function teamPlayers(id){
+    var n = tname(id), parts = n.split(/\s*(?:&|\+|\/|,|\band\b)\s*/i).filter(function(x){return x;});
+    return parts.length===2 ? parts : [n+" (1st)", n+" (2nd)"];
+  }
+  function tennis(m){
+    var lv=m.live||{}, h=lv.h||"", golden=S.deuce==="golden", sets3=S.scoring==="sets", mtbOpt=S.thirdSet==="mtb";
+    var A=teamPlayers(m.a), B=teamPlayers(m.b);
+    if (lv.sp){ A=[A[1],A[0]]; B=[B[1],B[0]]; }
+    var pa0={n:A[0],t:"a"}, pa1={n:A[1],t:"a"}, pb0={n:B[0],t:"b"}, pb1={n:B[1],t:"b"};
+    var order = lv.st ? [pb0,pa0,pb1,pa1] : [pa0,pb0,pa1,pb1];
+    var R={sets:[],ga:0,gb:0,pa:0,pb:0,tb:false,mtb:false,gp:0,done:false,winner:null,ev:null,wa:0,wb:0};
+    function won(p,o){ return p>=4 && (p-o>=2 || (golden && o===3 && p===4)); }
+    function endSet(s){
+      R.sets.push(s); R.ga=R.gb=0; R.pa=R.pb=0; R.tb=false; R.mtb=false;
+      if (s[0]>s[1]) R.wa++; else R.wb++;
+      R.ev = ((s[0]+s[1])%2===1 && !s.m) ? "set-ends" : "set";
+      if (!sets3 || R.wa===2 || R.wb===2){ R.done=true; R.winner = R.wa>R.wb?"a":"b"; R.ev="match"; }
+      else if (R.wa===1 && R.wb===1 && mtbOpt) R.mtb=true;
+    }
+    for (var i=0;i<h.length && !R.done;i++){
+      R.ev=null;
+      if (h[i]==="a") R.pa++; else R.pb++;
+      if (R.tb || R.mtb){
+        var tgt = R.mtb?10:7;
+        if ((R.pa>=tgt||R.pb>=tgt) && Math.abs(R.pa-R.pb)>=2){
+          var aw = R.pa>R.pb; R.gp++;
+          if (R.mtb){ var ms=[aw?1:0, aw?0:1]; ms.m=true; ms.tb=[R.pa,R.pb]; endSet(ms); }
+          else { var ts = aw?[7,6]:[6,7]; ts.tb=[R.pa,R.pb]; endSet(ts); }
+        } else if ((R.pa+R.pb)%6===0) R.ev="ends";
+      } else if (won(R.pa,R.pb) || won(R.pb,R.pa)){
+        if (R.pa>R.pb) R.ga++; else R.gb++;
+        R.pa=R.pb=0; R.gp++;
+        if ((R.ga>=6||R.gb>=6) && Math.abs(R.ga-R.gb)>=2) endSet([R.ga,R.gb]);
+        else { if (R.ga===6 && R.gb===6) R.tb=true; R.ev = (R.ga+R.gb)%2===1 ? "game-ends" : "game"; }
+      }
+    }
+    var k=R.pa+R.pb, idx, side;
+    if (R.tb||R.mtb){ idx = k===0 ? R.gp%4 : (R.gp + Math.floor((k+1)/2))%4; side = k===0 ? "right" : ((k-1)%2===0 ? "left" : "right"); }
+    else { idx = R.gp%4; side = k%2===0 ? "right" : "left"; }
+    R.server = order[idx]; R.side = side; R.order = order;
+    R.golden = !R.tb && !R.mtb && golden && R.pa===3 && R.pb===3;
+    R.deuce = !R.tb && !R.mtb && !golden && R.pa>=3 && R.pa===R.pb;
+    return R;
+  }
+  function ptLabel(R,s){
+    var p = s==="a"?R.pa:R.pb, o = s==="a"?R.pb:R.pa;
+    if (R.tb||R.mtb) return String(p);
+    if (p>=3 && o>=3) return p>o ? "Ad" : "40";
+    return ["0","15","30","40"][p];
+  }
+  function tennisScore(R){ // what gets saved as the result
+    var a=R.sets.map(function(x){return x[0];}), b=R.sets.map(function(x){return x[1];});
+    if (!R.done && (R.ga||R.gb)){ a.push(R.ga); b.push(R.gb); }
+    if (S.scoring!=="sets"){ a=a.slice(0,1); b=b.slice(0,1); }
+    return a.length ? {a:a,b:b} : null;
+  }
+  function liveText(m){
+    if (AM()){ var lv=liveOf(m); return lv.a+" \u2013 "+lv.b; }
+    var R=tennis(m), done=R.sets.map(function(x){return x.m?(x.tb[0]+"-"+x.tb[1]):(x[0]+"-"+x[1]);}).join(" ");
+    var now = R.done ? "" : (R.tb||R.mtb ? "TB "+R.pa+"-"+R.pb : R.ga+"\u2013"+R.gb);
+    return (done ? done+(now?" \u00b7 ":"") : "") + now;
+  }
+  function viewLiveTeams(){
+    var m=ui.modal.m, R=tennis(m), k=(m.live&&m.live.h||"").length, courtNo;
+    var inRound = S.matches.filter(function(x){return x.r===m.r;}).sort(function(x,y){return x.i-y.i;});
+    courtNo = (inRound.indexOf(m) % Math.max(1,S.courts|0)) + 1;
+    function panel(s){
+      var win = R.done && R.winner===s, serving = !R.done && R.server.t===s;
+      var sub = (R.tb||R.mtb) ? (R.mtb?"Match tiebreak":"Tiebreak") : "Games "+(s==="a"?R.ga:R.gb);
+      if (R.done) sub = "Sets "+(s==="a"?R.wa:R.wb);
+      return '<button class="lp '+(serving?"serving":"")+(win?" won":"")+'" data-live="'+s+'"'+(R.done||readOnly?" disabled":"")+'>' +
+        '<span class="nm">'+(serving?'\ud83c\udfbe ':'')+'<b>'+esc(tname(m[s]))+'</b></span>' +
+        '<span class="num">'+(R.done ? (s==="a"?R.wa:R.wb) : ptLabel(R,s))+'</span>' +
+        '<span class="tap">'+(R.done ? (win?"Winners":"") : sub)+'</span></button>';
+    }
+    var setsLine = R.sets.length ? '<div class="k">Sets: '+R.sets.map(function(x){return x.m ? "MTB "+x.tb[0]+"\u2013"+x.tb[1] : x[0]+"\u2013"+x[1]+(x.tb?" ("+Math.min(x.tb[0],x.tb[1])+")":"");}).join(", ")+'</div>' : '';
+    var mid;
+    if (R.done){
+      mid = '<div class="lmid"><b>Match complete \u2013 '+esc(tname(m[R.winner]))+' win</b>'+setsLine+'<div class="k">Tap undo if the last point was wrong.</div></div>';
+    } else {
+      var what = R.mtb ? "Match tiebreak, first to 10" : R.tb ? "Tiebreak, first to 7" : (S.scoring==="sets" ? "Set "+(R.sets.length+1)+" \u00b7 " : "") + "Games "+R.ga+"\u2013"+R.gb;
+      var call = R.golden ? '<div class="k"><b>Golden point</b>: the receiving pair choose which side to receive on</div>'
+        : R.deuce ? '<div class="k"><b>Deuce</b></div>' : '';
+      mid = '<div class="lmid">'+what+setsLine +
+        '<br>\ud83c\udfbe <b>'+esc(R.server.n)+'</b> serves'+(R.golden?'':' from the <b>'+R.side+'</b>')+call+'</div>';
+      if (R.ev==="game-ends" || R.ev==="set-ends" || R.ev==="ends") mid = '<div class="ends">\u21c4 Change ends</div>' + mid;
+      else if (R.ev==="set") mid = '<div class="ends" style="background:var(--accent-soft);color:var(--ink)">Set to '+esc(tname(m[R.sets[R.sets.length-1][0]>R.sets[R.sets.length-1][1]?"a":"b"]))+'</div>' + mid;
+    }
+    var pre = (k===0 && !readOnly) ? '<div class="lbar" style="grid-template-columns:1fr 1fr;margin:2px 0 4px">' +
+      '<button class="btn ghost" data-act="live-swap-team">Swap serving pair</button><button class="btn ghost" data-act="live-swap-order">Swap who serves first</button></div>' +
+      '<div class="hint" style="text-align:center;margin:0 0 4px">Serve order: '+R.order.map(function(o){return esc(o.n);}).join(' \u2192 ')+'</div>' : '';
+    var canSave = !readOnly && !!tennisScore(R);
+    return '<div class="live-wrap">' +
+      '<div class="live-top"><div class="ttl">Round '+m.r+' \u00b7 Court '+courtNo+'<span>'+(S.deuce==="golden"?"Golden point":"Advantage")+' \u00b7 '+(S.scoring==="sets"?"Best of 3"+(S.thirdSet==="mtb"?", match tiebreak":""):"One set")+'</span></div>' +
+      '<button class="icon" data-act="close" aria-label="Close">\u00d7</button></div>' +
+      pre + panel("a") + mid + panel("b") +
+      '<div class="lbar"><button class="btn ghost" data-act="live-undo"'+(k&&!readOnly?"":" disabled")+'>\u21b6 Undo</button>' +
+      (R.done && canSave ? '<button class="btn" data-act="live-save">Save result</button>'
+        : canSave ? '<button class="btn '+(ui.liveSaveArmed?"armed":"ghost")+'" data-act="live-save">'+(ui.liveSaveArmed?"Tap again to save as final":"Stop &amp; save score so far")+'</button>'
+        : '<button class="btn ghost" data-act="close">Close</button>') + '</div></div>';
+  }
+
   function viewLive(){
+    if (!AM()) return viewLiveTeams();
     var m=ui.modal.m, L=liveOf(m), k=L.a+L.b, ppm=S.ppm, done = ppm>0 && k>=ppm, half=Math.floor(ppm/2);
     var sv = done ? null : serverAt(m,k), courtNo = 0;
     var inRound = S.matches.filter(function(x){return x.r===m.r;}).sort(function(x,y){return x.i-y.i;});
@@ -1012,6 +1125,7 @@ input:focus,select:focus{border-color:var(--accent)}
       '<li>Tapped the wrong one? Hit <b>Undo</b>.</li>' +
       '<li>A banner tells you when to <b>change ends</b> at halfway.</li>' +
       '<li>When the last point is played, tap <b>Save result</b>. You can close the screen mid-match and the score is kept.</li></ul>' +
+      '<p><b>Fixed teams</b> use proper padel scoring when scored live: 15\u201330\u201340, deuce (or golden point), games, sets and tiebreaks. Just tap the pair that wins each rally. The app works out the score, who serves next and when to change ends. Before the first point you can swap which pair, and which player, serves first. If you run out of time, tap <b>Stop &amp; save score so far</b> twice.</p>' +
       '<p><b>Made a mistake?</b> Tap a finished match to change the score, or tap <b>Clear result</b>.</p>'],
     ["tables","Today and Overall tables",
       '<p><b>Today</b> is this session only. In Americano, both players in a pair get the pair\u2019s points. Win 15\u20139 and you each add 15. P = played, W = won, +/\u2212 = points won minus points lost.</p>' +
@@ -1058,7 +1172,7 @@ input:focus,select:focus{border-color:var(--accent)}
   function viewModal(){
     var md = ui.modal, m = md.m, ro = readOnly?" disabled":"";
     var h = '<div class="scrim" data-act="close-bg"><div class="sheet"><h3>Round '+m.r+'</h3>' +
-      (AM() && !m.score && !readOnly ? '<button class="btn" data-act="live-open" style="margin:10px 0 2px">▶ Score live, point by point</button><div class="hint" style="text-align:center">Or enter the final score below.</div>' : '') +
+      (!m.score && !readOnly ? '<button class="btn" data-act="live-open" style="margin:10px 0 2px">▶ Score live, point by point</button><div class="hint" style="text-align:center">Or enter the final score below.</div>' : '') +
       '<div class="vsline"><div>'+esc(side(m,"a"))+'</div><span>vs</span><div>'+esc(side(m,"b"))+'</div></div>';
     if (AM()){
       var order=[m.a[0],m.b[0],m.a[1],m.b[1]].map(tname), blk=serveBlock(S.ppm);
@@ -1102,14 +1216,17 @@ input:focus,select:focus{border-color:var(--accent)}
     var d = t.dataset;
     if (d.act!=="reset" && ui.resetArmed){ ui.resetArmed=false; }
     if (d.act!=="finish" && ui.finishArmed){ ui.finishArmed=false; }
+    if (d.act!=="live-save" && ui.liveSaveArmed){ ui.liveSaveArmed=false; }
     if (d.act!=="del-session" && ui.delArmed){ ui.delArmed=false; }
     if (d.gsec){ ui.guideOpen = ui.guideOpen || {}; ui.guideOpen[d.gsec] = !ui.guideOpen[d.gsec]; render(); return; }
+    if (d.deuce){ S.deuce=d.deuce; commit(); return; }
+    if (d.third){ S.thirdSet=d.third; commit(); return; }
     if (d.session){ ui.modal={kind:"session", id:d.session, m:{id:null}}; ui.delArmed=false; render(); return; }
     if (d.minm!=null && t.hasAttribute("data-minm")){ S.minMatches=+d.minm; commit(); return; }
     if (d.tab){ ui.tab=d.tab; ui.copied=false; ui.copiedOverall=false; if (d.tab==="overall") fetchHistory(); render(); window.scrollTo(0,0); return; }
     if (d.match){
       var m = findMatch(d.match), sm = setsMode();
-      if (AM() && !m.score && m.live && m.live.h){ ui.modal = {kind:"live", m:m}; render(); return; }
+      if (!m.score && m.live && m.live.h){ ui.modal = {kind:"live", m:m}; render(); return; }
       var a = m.score ? m.score.a.slice() : (sm?[]:[0]);
       var b = m.score ? m.score.b.slice() : (sm?[]:[0]);
       if (!m.score && AM() && S.ppm){ a=[Math.ceil(S.ppm/2)]; b=[Math.floor(S.ppm/2)]; }
@@ -1117,8 +1234,8 @@ input:focus,select:focus{border-color:var(--accent)}
     }
     if (d.live){
       var mm=ui.modal.m, LL=liveOf(mm);
-      if (S.ppm && LL.a+LL.b>=S.ppm) return;
-      mm.live = {h:LL.h+d.live, t:Date.now()};
+      if (AM() ? (S.ppm && LL.a+LL.b>=S.ppm) : tennis(mm).done) return;
+      mm.live = Object.assign({}, mm.live||{}, {h:LL.h+d.live, t:Date.now()});
       try { navigator.vibrate && navigator.vibrate(12); } catch(e){}
       commitLive(mm); return;
     }
@@ -1176,10 +1293,24 @@ input:focus,select:focus{border-color:var(--accent)}
         try { navigator.clipboard.writeText(dtxt).then(function(){ui.diagCopied=true;render();}).catch(function(){fallbackCopy(dtxt);}); } catch(e){ fallbackCopy(dtxt); }
         break;
       case "live-open": ui.modal = {kind:"live", m:ui.modal.m}; render(); break;
-      case "live-undo": var um=ui.modal.m, uh=liveOf(um).h; um.live = uh.length>1 ? {h:uh.slice(0,-1), t:Date.now()} : null; commitLive(um); break;
+      case "live-undo":
+        var um=ui.modal.m, uh=liveOf(um).h;
+        um.live = Object.assign({}, um.live||{}, {h:uh.slice(0,-1), t:Date.now()});
+        if (!um.live.h && !um.live.st && !um.live.sp) um.live = null;
+        commitLive(um); break;
+      case "live-swap-team": case "live-swap-order":
+        var sm2=ui.modal.m; sm2.live = Object.assign({h:""}, sm2.live||{}, {t:Date.now()});
+        if (d.act==="live-swap-team") sm2.live.st = sm2.live.st ? 0 : 1; else sm2.live.sp = sm2.live.sp ? 0 : 1;
+        commitLive(sm2); break;
       case "live-save":
-        var lm=ui.modal.m, L=liveOf(lm);
-        lm.score={a:[L.a],b:[L.b]}; lm.live=null; ui.modal=null; commitScore(lm); break;
+        var lm=ui.modal.m;
+        if (AM()){ var L=liveOf(lm); lm.score={a:[L.a],b:[L.b]}; }
+        else {
+          var TR=tennis(lm), sc2=tennisScore(TR); if (!sc2) break;
+          if (!TR.done && !ui.liveSaveArmed){ ui.liveSaveArmed=true; render(); break; }
+          ui.liveSaveArmed=false; lm.score=sc2;
+        }
+        lm.live=null; ui.modal=null; commitScore(lm); break;
       case "clear": var cm=ui.modal.m; cm.score=null; ui.modal=null; commitScore(cm); break;
       case "save": saveScore(); break;
       case "copy": copyTable(); break;
