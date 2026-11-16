@@ -552,7 +552,7 @@ input:focus,select:focus{border-color:var(--accent)}
   function render(){
     var played = S.matches.filter(function(m){return m.score;}).length, total=S.matches.length;
     var st = statusText(), who = AM() ? "players" : "teams";
-    var h = '<div class="wrap"><header><div><h1>'+esc(S.name||"Round Robin")+'</h1>' +
+    var h = '<div class="wrap"><header><div><h1>'+esc(S.name||"Palz")+'</h1>' +
       '<div class="sub">'+(S.started? played+' of '+total+' matches played · '+S.teams.length+' '+who+(AM()?' · Americano':'') : 'Set up your '+who+' to get started')+'</div></div>' +
       '<button id="status" data-act="diag" class="status '+st[1]+'">'+esc(st[0])+'</button></header>';
     if (readOnly) h += '<div class="banner">You can view this tracker but not edit it.</div>';
