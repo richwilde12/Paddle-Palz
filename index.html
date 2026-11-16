@@ -37,7 +37,7 @@ button.status{background:none;border:0;padding:4px 0;cursor:pointer;text-decorat
 .diag dt{font-size:12px;color:var(--muted);font-weight:600;margin-top:10px}
 .diag dd{margin:2px 0 0;font-size:13px;overflow-wrap:anywhere}
 .tabs{position:sticky;top:0;z-index:5;display:flex;gap:4px;padding:4px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:14px}
-.tabs button{flex:1;border:0;background:transparent;padding:9px 6px;border-radius:9px;font-weight:600;color:var(--muted);cursor:pointer}
+.tabs button{flex:1;min-width:0;border:0;background:transparent;padding:9px 2px;font-size:14px;border-radius:9px;font-weight:600;color:var(--muted);cursor:pointer}
 .tabs button.on{background:var(--accent);color:var(--accent-ink)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
 .stack>*+*{margin-top:14px}
@@ -93,6 +93,7 @@ input:focus,select:focus{border-color:var(--accent)}
 .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
 .btn.danger{background:transparent;border:1px solid var(--loss);color:var(--loss)}
 .btn.danger.armed{background:var(--loss);color:#fff}
+.btn.armed:not(.danger){background:var(--ball);color:#14201a}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .hint{font-size:12px;color:var(--muted);margin-top:6px}
 .note{font-size:13px;padding:10px 12px;border-radius:10px;background:var(--accent-soft);color:var(--ink)}
@@ -159,7 +160,7 @@ input:focus,select:focus{border-color:var(--accent)}
 (function(){
   "use strict";
   var DEFAULT = {v:2,mode:"teams",name:"Paddle Round Robin",scoring:"games",pts:{w:3,d:1,l:0},courts:2,double:false,
-    ppm:24,rounds:0,rankBy:"total",
+    ppm:24,rounds:0,rankBy:"total",minMatches:0,startedAt:0,
     teams:[{id:"t1",name:""},{id:"t2",name:""},{id:"t3",name:""},{id:"t4",name:""}],
     matches:[],started:false,updatedAt:0};
   /* =====================================================================
@@ -203,10 +204,26 @@ input:focus,select:focus{border-color:var(--accent)}
   function sign(n){return n>0?"+"+n:String(n);}
 
   /* ---------- persistence (Google Sheet via Apps Script) ---------- */
-  var QKEY = LSKEY + "-queue";
+  var QKEY = LSKEY + "-queue", HKEY = LSKEY + "-history";
+  var H = {sessions:[]}, hv = -1, histLoading = false;
+  try { var hh = JSON.parse(localStorage.getItem(HKEY)); if (hh && Array.isArray(hh.sessions)) H = hh; } catch(e){}
+  function cacheHistory(){ try { localStorage.setItem(HKEY, JSON.stringify(H)); } catch(e){} }
+  function setHistory(h, v){
+    if (!h || !Array.isArray(h.sessions)) return;
+    H = h; if (v!=null) hv = v; cacheHistory();
+    if (loaded && (ui.tab==="overall" || (ui.modal && ui.modal.kind==="session"))) remoteRender();
+  }
+  function fetchHistory(){
+    if (!USE_API || histLoading) return;
+    histLoading = true;
+    fetch(SHEET_API_URL.trim() + "?t=" + encodeURIComponent(TID) + "&history=1", {cache:"no-store"})
+      .then(readJSON).then(function(res){ histLoading = false; if (res && res.ok && !(inflight && inflight.op==="archive") && !queue.some(function(q){return q.op==="archive"||q.op==="deleteSession";})) setHistory(res.history, res.hv); })
+      .catch(function(){ histLoading = false; });
+  }
   function cacheLocal(){ try { localStorage.setItem(LSKEY, JSON.stringify(S)); } catch(e){} }
   function saveQueue(){ try { localStorage.setItem(QKEY, JSON.stringify((inflight?[inflight]:[]).concat(queue))); } catch(e){} }
   function sameKey(x,y){ return x.op===y.op && (x.op==="setAll" || (x.op==="live" && x.id===y.id)); }
+  // finished sessions go through the queue too, so they survive a lost signal
   function enqueue(op){
     if (!USE_API) return;
     queue = queue.filter(function(q){ return !sameKey(q,op); });
@@ -252,6 +269,7 @@ input:focus,select:focus{border-color:var(--accent)}
       }
       diag.post = "OK \u2013 saved (" + op.op + ")";
       net = "live"; ver = res.v; saveQueue();
+      if (res.history && !queue.some(function(q){return q.op==="archive"||q.op==="deleteSession";})) setHistory(res.history, res.hv);
       if (!queue.length && res.state) applyRemote(res.state);
       if (queue.length) flush(); else renderStatus();
     }).catch(function(e){
@@ -274,6 +292,7 @@ input:focus,select:focus{border-color:var(--accent)}
         if (!res || res.error){ net = "error"; if (!loaded){ loaded = true; render(); } else renderStatus(); return; }
         net = "live";
         var first = !loaded;
+        if (res.hv!==undefined && res.hv!==hv) fetchHistory();
         if (!res.same){
           if (res.state){
             if (res.v > ver && !inflight && !queue.length){ ver = res.v; applyRemote(res.state); }
@@ -290,7 +309,7 @@ input:focus,select:focus{border-color:var(--accent)}
   }
   function applyRemote(v){
     S = normalise(v); cacheLocal();
-    if (ui.modal && ui.modal.kind!=="diag"){ // keep an open score sheet pointing at the fresh match object
+    if (ui.modal && ui.modal.kind!=="diag" && ui.modal.kind!=="session"){ // keep an open score sheet pointing at the fresh match object
       var fresh = S.matches.filter(function(m){return m.id===ui.modal.m.id;})[0];
       if (fresh && !(ui.modal.kind==="live" && fresh.score)) ui.modal.m = fresh; else ui.modal = null;
     }
@@ -340,7 +359,11 @@ input:focus,select:focus{border-color:var(--accent)}
       table = [["Pos","Team","Played","Won","Drawn","Lost"].concat(setsMode()?["Sets +/-"]:[]).concat(["Games +/-","Points"])];
       standingsTeams().forEach(function(x,i){ table.push([i+1,x.name,x.p,x.w,x.d,x.l].concat(setsMode()?[x.sd]:[]).concat([x.gd,x.pts])); });
     }
-    return {name:S.name, results:results, table:table};
+    var overall = [["Pos","Player","Sessions","Played","Won","Drawn","Lost","+/-","Total points","Average"]];
+    overallRows().forEach(function(x,i){ overall.push([x.qualified? i+1 : "\u2013", x.name, x.sessions, x.p, x.w, x.d, x.l, x.diff, x.pf, Math.round(x.avg*10)/10]); });
+    var all = [["Date","Session","Round","Side A","Side B","Score A","Score B"]];
+    H.sessions.forEach(function(ss){ ss.matches.forEach(function(m){ all.push([ss.date, ss.name, m.r, m.a.join(" & "), m.b.join(" & "), m.sa, m.sb]); }); });
+    return {name:S.name, results:results, table:table, overall:overall, allMatches:all};
   }
   function statusText(){
     if (!USE_API) return ["Saved on this phone",""];
@@ -534,17 +557,19 @@ input:focus,select:focus{border-color:var(--accent)}
       '<button id="status" data-act="diag" class="status '+st[1]+'">'+esc(st[0])+'</button></header>';
     if (readOnly) h += '<div class="banner">You can view this tracker but not edit it.</div>';
     if (ui.tab==="rules" && !AM()) ui.tab="setup";
-    var tabs = AM() ? ["matches","table","rules","setup"] : ["matches","table","setup"];
+    var tabs = AM() ? ["matches","table","overall","rules","setup"] : ["matches","table","overall","setup"];
     h += '<nav class="tabs">' + tabs.map(function(t){
-      return '<button data-tab="'+t+'" class="'+(ui.tab===t?"on":"")+'">'+({matches:"Matches",table:"Table",rules:"Rules",setup:"Setup"})[t]+'</button>';
+      return '<button data-tab="'+t+'" class="'+(ui.tab===t?"on":"")+'">'+({matches:"Matches",table:"Today",overall:"Overall",rules:"Rules",setup:"Setup"})[t]+'</button>';
     }).join("") + '</nav>';
     if (!loaded) h += '<div class="card empty">Loading tournament…</div>';
     else if (ui.tab==="matches") h += viewMatches(played,total);
     else if (ui.tab==="table") h += viewTable();
+    else if (ui.tab==="overall") h += viewOverall();
     else if (ui.tab==="rules") h += viewRules();
     else h += viewSetup();
     h += '</div>';
     if (ui.modal && ui.modal.kind==="diag") h += viewDiag();
+    else if (ui.modal && ui.modal.kind==="session") h += viewSession();
     else if (ui.modal && ui.modal.kind==="live") h += viewLive();
     else if (ui.modal) h += viewModal();
     keepAwake(!!(ui.modal && ui.modal.kind==="live"));
@@ -588,6 +613,113 @@ input:focus,select:focus{border-color:var(--accent)}
     if (AM() && !readOnly) h += '<div style="margin-top:16px"><button class="btn ghost" data-act="add-round">+ Add another round</button>' +
       '<div class="hint" style="text-align:center">Pairs players who’ve partnered least so far.</div></div>';
     return h;
+  }
+
+  /* ---------- history & overall table ---------- */
+  function todayISO(t){ var d=t?new Date(t):new Date(); return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2); }
+  function niceDate(iso){ try { var p=iso.split("-"); return new Date(+p[0],+p[1]-1,+p[2]).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short",year:"numeric"}); } catch(e){ return iso; } }
+  function currentAsSession(){
+    var ms = S.matches.filter(function(m){return m.score;}).map(function(m){
+      var r=result(m), A=[].concat(m.a).map(tname), B=[].concat(m.b).map(tname);
+      return {r:m.r, a:A, b:B, sa:r.ga, sb:r.gb, ra:setsMode()?r.sa:null, rb:setsMode()?r.sb:null};
+    });
+    return {id:uid("s"), date:todayISO(S.startedAt||Date.now()), name:S.name||"Session", mode:S.mode, ppm:S.ppm, rankBy:AM()?S.rankBy:"points",
+      pts:S.pts, scoring:S.scoring, players:S.teams.map(function(t){return t.name;}), matches:ms};
+  }
+  function aggregate(sessions){
+    var rows={};
+    sessions.forEach(function(ss){
+      var seen={};
+      ss.matches.forEach(function(m){
+        var res = (m.ra!=null) ? (m.ra>m.rb?"a":m.rb>m.ra?"b":"d") : (m.sa>m.sb?"a":m.sb>m.sa?"b":"d");
+        [["a",m.a,m.sa,m.sb],["b",m.b,m.sb,m.sa]].forEach(function(sd){
+          sd[1].forEach(function(n){
+            var k=String(n).trim().toLowerCase(); if(!k) return;
+            var x=rows[k]||(rows[k]={name:String(n).trim(),sessions:0,p:0,w:0,d:0,l:0,pf:0,pa:0});
+            x.name=String(n).trim();
+            if(!seen[k]){ seen[k]=1; x.sessions++; }
+            x.p++; x.pf+=sd[2]; x.pa+=sd[3];
+            if (res==="d") x.d++; else if (res===sd[0]) x.w++; else x.l++;
+          });
+        });
+      });
+    });
+    return Object.keys(rows).map(function(k){ var x=rows[k]; x.diff=x.pf-x.pa; x.avg=x.p?x.pf/x.p:0; return x; });
+  }
+  function overallRows(){
+    var list = H.sessions.slice(), cur = currentAsSession();
+    if (cur.matches.length) list.push(cur);
+    var rows = aggregate(list), min = S.minMatches|0;
+    rows.forEach(function(x){ x.qualified = x.p>=min; });
+    rows.sort(function(x,y){ return (y.qualified-x.qualified) || y.avg-x.avg || y.p-x.p || y.pf-x.pf || x.name.localeCompare(y.name); });
+    return rows;
+  }
+  function sessionRows(ss){
+    var rows = aggregate([ss]);
+    if (ss.mode==="americano"){
+      var byAvg = ss.rankBy==="avg";
+      rows.sort(function(x,y){ return (byAvg? y.avg-x.avg : y.pf-x.pf) || y.w-x.w || y.diff-x.diff || x.name.localeCompare(y.name); });
+    } else {
+      var pts = ss.pts||{w:3,d:1,l:0};
+      rows.forEach(function(x){ x.lp = x.w*pts.w + x.d*pts.d + x.l*pts.l; });
+      rows.sort(function(x,y){ return y.lp-x.lp || y.diff-x.diff || y.pf-x.pf || x.name.localeCompare(y.name); });
+    }
+    return rows;
+  }
+  function viewOverall(){
+    var rows = overallRows(), min = S.minMatches|0, cur = currentAsSession().matches.length;
+    var h = '<div class="card"><div class="toolbar" style="margin-bottom:8px"><strong>All sessions</strong><span class="hint" style="margin:0">'+H.sessions.length+' saved'+(cur?' + today':'')+'</span></div>';
+    if (!rows.length){
+      h += '<div class="empty" style="padding:16px 4px">No results yet. When a session ends, tap <b>Finish &amp; save to history</b> in Setup and it\u2019ll count here.</div></div>';
+    } else {
+      h += '<table><thead><tr><th></th><th class="l">Player</th><th class="hide-sm">Sess</th><th>P</th><th>W</th><th class="hide-sm">+/\u2212</th><th class="hide-sm">Total</th><th>Avg</th></tr></thead><tbody>';
+      var shownLine=false;
+      rows.forEach(function(x,i){
+        if (!x.qualified && !shownLine && min>0){ shownLine=true; h += '<tr><td colspan="8" class="l hint" style="padding:10px 4px 4px">Fewer than '+min+' matches \u2013 not ranked yet</td></tr>'; }
+        h += '<tr class="'+(i===0&&x.qualified?"lead":"")+'"'+(x.qualified?'':' style="opacity:.6"')+'><td class="pos"><span>'+(x.qualified?i+1:"\u2013")+'</span></td><td class="l name">'+esc(x.name)+'</td>' +
+          '<td class="hide-sm">'+x.sessions+'</td><td>'+x.p+'</td><td>'+x.w+'</td><td class="hide-sm">'+sign(x.diff)+'</td><td class="hide-sm">'+x.pf+'</td><td class="pts">'+x.avg.toFixed(1)+'</td></tr>';
+      });
+      h += '</tbody></table></div>';
+    }
+    h += '<div class="hint" style="margin:8px 4px 12px">Ranked by average points per match across every saved session'+(cur?', plus today\u2019s matches so far':'')+'. Players are matched by name, so keep spellings the same each week.</div>';
+    h += '<div class="card" style="margin-bottom:12px"><label class="f">Minimum matches to be ranked</label><div class="seg">' + [0,3,5,10,20].map(function(v){
+      return '<button data-minm="'+v+'" class="'+(min===v?"on":"")+'"'+(readOnly?" disabled":"")+'>'+(v?v:"None")+'</button>'; }).join("") + '</div>' +
+      '<div class="hint">Stops someone who played one great match topping the table.</div></div>';
+    if (rows.length) h += '<button class="btn ghost" data-act="copy-overall" style="margin-bottom:16px">'+(ui.copiedOverall?"Copied \u2713":"Copy overall table as text")+'</button>';
+    h += '<div class="round-h"><h2>Past sessions</h2><span>'+H.sessions.length+'</span></div>';
+    if (!H.sessions.length) h += '<div class="hint" style="margin:0 2px">None saved yet.</div>';
+    H.sessions.slice().sort(function(a,b){ return a.date<b.date?1:a.date>b.date?-1:0; }).forEach(function(ss){
+      var top = sessionRows(ss)[0];
+      h += '<button class="match" data-session="'+ss.id+'" style="grid-template-columns:1fr auto"><div class="t">'+esc(ss.name)+'<small style="color:var(--muted);font-weight:500">'+esc(niceDate(ss.date))+' \u00b7 '+ss.matches.length+' matches \u00b7 '+ss.players.length+' '+(ss.mode==="americano"?"players":"teams")+'</small></div>' +
+        '<div class="sc" style="text-align:right">'+(top?'<span class="sets" style="margin:0">Winner</span>\ud83c\udfc6 '+esc(top.name):'')+'</div></button>';
+    });
+    return h;
+  }
+  function viewSession(){
+    var ss = H.sessions.filter(function(x){return x.id===ui.modal.id;})[0];
+    if (!ss) return '';
+    var rows = sessionRows(ss), am = ss.mode==="americano";
+    var h = '<div class="scrim" data-act="close-bg"><div class="sheet"><h3>'+esc(ss.name)+'</h3><div class="hint" style="margin:0 0 10px">'+esc(niceDate(ss.date))+' \u00b7 '+ss.matches.length+' matches'+(am&&ss.ppm?' \u00b7 '+ss.ppm+' points':'')+'</div>' +
+      '<table><thead><tr><th></th><th class="l">'+(am?"Player":"Team")+'</th><th>P</th><th>W</th><th>+/\u2212</th><th>Avg</th><th>'+(am?"Pts":"Pts")+'</th></tr></thead><tbody>';
+    rows.forEach(function(x,i){
+      h += '<tr class="'+(i===0?"lead":"")+'"><td class="pos"><span>'+(i+1)+'</span></td><td class="l name">'+esc(x.name)+'</td><td>'+x.p+'</td><td>'+x.w+'</td><td>'+sign(x.diff)+'</td><td>'+x.avg.toFixed(1)+'</td><td class="pts">'+(am?x.pf:x.lp)+'</td></tr>';
+    });
+    h += '</tbody></table><div class="actions">' +
+      (readOnly?'':'<button class="btn danger '+(ui.delArmed?"armed":"")+'" data-act="del-session">'+(ui.delArmed?"Tap again to delete this session":"Delete session from history")+'</button>') +
+      '<button class="btn ghost" data-act="close">Close</button></div></div></div>';
+    return h;
+  }
+  function finishSession(){
+    var ss = currentAsSession();
+    H.sessions.push(ss); cacheHistory();
+    S.matches=[]; S.started=false; S.startedAt=0; S.updatedAt=Date.now(); cacheLocal();
+    if (USE_API) enqueue({op:"archive", session:ss, state:JSON.parse(JSON.stringify(S))});
+    ui.tab="overall"; render(); window.scrollTo(0,0);
+  }
+  function deleteSession(id){
+    H.sessions = H.sessions.filter(function(x){return x.id!==id;}); cacheHistory();
+    if (USE_API) enqueue({op:"deleteSession", id:id});
+    ui.modal=null; render();
   }
 
   function viewTable(){
@@ -687,8 +819,11 @@ input:focus,select:focus{border-color:var(--accent)}
         else if (named!==n) h += '<div class="hint" style="text-align:center">Name everyone to continue (or remove empty rows).</div>';
         h += '</div>';
       } else {
-        h += '<div style="margin-top:14px"><button class="btn danger '+(ui.resetArmed?"armed":"")+'" data-act="reset">'+(ui.resetArmed?"Tap again to delete all results":"Reset tournament")+'</button>' +
-          '<div class="hint" style="text-align:center">Keeps the names, clears fixtures and scores.</div></div>';
+        var playedN = S.matches.filter(function(m){return m.score;}).length;
+        h += '<div style="margin-top:14px"><button class="btn '+(ui.finishArmed?"armed":"")+'" data-act="finish"'+(playedN?"":" disabled")+'>'+(ui.finishArmed?"Tap again to save "+playedN+" match"+(playedN>1?"es":"")+" & finish":"Finish & save to history")+'</button>' +
+          '<div class="hint" style="text-align:center">'+(playedN?'Saves today\u2019s '+playedN+' played match'+(playedN>1?'es':'')+' to the Overall table, then clears the fixtures. Names are kept for next time.':'Play at least one match to save this session.')+'</div>' +
+          '<button class="btn danger '+(ui.resetArmed?"armed":"")+'" data-act="reset" style="margin-top:14px">'+(ui.resetArmed?"Tap again to delete without saving":"Reset without saving")+'</button>' +
+          '<div class="hint" style="text-align:center">Clears fixtures and scores. Nothing goes into history.</div></div>';
       }
     }
     return h;
@@ -865,7 +1000,11 @@ input:focus,select:focus{border-color:var(--accent)}
     if (t.dataset.act==="close-bg" && e.target!==t) return;
     var d = t.dataset;
     if (d.act!=="reset" && ui.resetArmed){ ui.resetArmed=false; }
-    if (d.tab){ ui.tab=d.tab; ui.copied=false; render(); window.scrollTo(0,0); return; }
+    if (d.act!=="finish" && ui.finishArmed){ ui.finishArmed=false; }
+    if (d.act!=="del-session" && ui.delArmed){ ui.delArmed=false; }
+    if (d.session){ ui.modal={kind:"session", id:d.session, m:{id:null}}; ui.delArmed=false; render(); return; }
+    if (d.minm!=null && t.hasAttribute("data-minm")){ S.minMatches=+d.minm; commit(); return; }
+    if (d.tab){ ui.tab=d.tab; ui.copied=false; ui.copiedOverall=false; if (d.tab==="overall") fetchHistory(); render(); window.scrollTo(0,0); return; }
     if (d.match){
       var m = findMatch(d.match), sm = setsMode();
       if (AM() && !m.score && m.live && m.live.h){ ui.modal = {kind:"live", m:m}; render(); return; }
@@ -897,12 +1036,27 @@ input:focus,select:focus{border-color:var(--accent)}
         t.textContent="Building fixtures…"; t.classList.add("busy");
         setTimeout(function(){
           S.matches = AM() ? scheduleAmericano([], amRounds()) : generateTeams();
+          S.startedAt = Date.now();
           S.started = true; ui.tab="matches"; commit(); window.scrollTo(0,0);
         }, 30);
         break;
       case "add-round":
         t.textContent="Adding…"; t.classList.add("busy");
         setTimeout(function(){ var add = scheduleAmericano(S.matches,1); S.matches = S.matches.concat(add); commitNewMatches(add); }, 30);
+        break;
+      case "finish":
+        if (!ui.finishArmed){ ui.finishArmed=true; render(); }
+        else { ui.finishArmed=false; finishSession(); }
+        break;
+      case "del-session":
+        if (!ui.delArmed){ ui.delArmed=true; render(); }
+        else { ui.delArmed=false; deleteSession(ui.modal.id); }
+        break;
+      case "copy-overall":
+        var olines=["Overall table \u2013 average points per match",""];
+        overallRows().forEach(function(x,i){ olines.push((x.qualified?(i+1)+". ":"\u2013 ")+x.name+" \u2014 avg "+x.avg.toFixed(1)+" ("+x.p+" matches, "+x.w+" wins)"); });
+        var otxt=olines.join("\n");
+        try { navigator.clipboard.writeText(otxt).then(function(){ui.copiedOverall=true;render();}).catch(function(){fallbackCopy(otxt);}); } catch(e){ fallbackCopy(otxt); }
         break;
       case "reset":
         if (!ui.resetArmed){ ui.resetArmed=true; render(); }
