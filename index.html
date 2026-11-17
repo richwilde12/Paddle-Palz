@@ -283,13 +283,94 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   var TID = ((new URLSearchParams(location.search).get("t")) || "main").replace(/[^a-zA-Z0-9_-]/g,"").slice(0,40) || "main";
   var LSKEY = "rr-tracker-state" + (TID==="main" ? "" : "-"+TID);
   var local = null;
-  try { local = JSON.parse(localStorage.getItem(LSKEY)); } catch(e){}
+  try { local = JSON.parse(localStorage.getItem(LSKEY)); } catch(e){ local = null; }
   function brand(n){
     if (!n || /^padd?le round robin$/i.test(n)) return "Padel Palz";
     return String(n).replace(/\bpaddle\b/gi, function(w){ return w[0]==="P" ? "Padel" : "padel"; });
   }
+  /* ---------- data hygiene: everything loaded (sheet, phone storage) is rebuilt into a safe shape ---------- */
+  function str(x, max){ return (typeof x==="string" || typeof x==="number") ? String(x).replace(/[\u0000-\u001f\u007f]/g,"").slice(0, max||40) : ""; }
+  function int(x, lo, hi, dflt){ x = Math.round(Number(x)); return isFinite(x) ? Math.min(hi, Math.max(lo, x)) : dflt; }
+  function obj(x){ return x && typeof x==="object" && !Array.isArray(x) ? x : null; }
+  function cleanScore(sc){
+    sc = obj(sc); if (!sc || !Array.isArray(sc.a) || !Array.isArray(sc.b)) return null;
+    var n = Math.min(3, sc.a.length, sc.b.length); if (!n) return null;
+    var a=[], b=[]; for (var i=0;i<n;i++){ a.push(int(sc.a[i],0,999,0)); b.push(int(sc.b[i],0,999,0)); }
+    return {a:a, b:b};
+  }
+  function cleanLive(lv){
+    lv = obj(lv); if (!lv) return undefined;
+    var o = {h: (typeof lv.h==="string" ? lv.h.replace(/[^ab]/g,"") : "").slice(0,1500), t: int(lv.t,0,1e15,0)};
+    ["ts","pt","pa","ex"].forEach(function(k){ var x=int(lv[k],0,1e15,0); if (x) o[k]=x; });
+    if (lv.st) o.st=1; if (lv.sp) o.sp=1;
+    return (o.h || o.ts || o.st || o.sp) ? o : undefined;
+  }
+  function sanitize(v){
+    v = obj(v) || {};
+    var o = {v:2};
+    o.mode = ["americano","rotating","teams"].indexOf(v.mode)>=0 ? v.mode : DEFAULT.mode;
+    o.name = str(v.name,60) || DEFAULT.name;
+    o.scoring = v.scoring==="sets" ? "sets" : "games";
+    o.deuce = v.deuce==="golden" ? "golden" : "advantage";
+    o.thirdSet = v.thirdSet==="mtb" ? "mtb" : "set";
+    o.rankBy = v.rankBy==="avg" ? "avg" : "total";
+    o.ppm = [0,16,21,24,32].indexOf(Number(v.ppm))>=0 ? Number(v.ppm) : 24;
+    o.courts = int(v.courts,1,20,2); o.rounds = int(v.rounds,0,60,0); o.matchMins = int(v.matchMins,0,180,0); o.minMatches = int(v.minMatches,0,100,0);
+    var pts = obj(v.pts) || {}; o.pts = {w:int(pts.w,-10,10,3), d:int(pts.d,-10,10,1), l:int(pts.l,-10,10,0)};
+    o.double = !!v.double; o.started = !!v.started;
+    o.startedAt = int(v.startedAt,0,1e15,0); o.updatedAt = int(v.updatedAt,0,1e15,0); o._sv = int(v._sv,0,1e15,0);
+    function names(a, max){ return Array.isArray(a) ? a.map(function(n){return str(n,40).trim();}).filter(Boolean).slice(0, max) : []; }
+    o.roster = names(v.roster, 400); o.rosterHidden = names(v.rosterHidden, 400);
+    o.picks = Array.isArray(v.picks) ? names(v.picks, 200) : null;
+    var ids = Object.create(null);
+    o.teams = (Array.isArray(v.teams) ? v.teams : []).map(function(t){
+      t = obj(t); if (!t) return null;
+      var id = str(t.id,24) || uid("t"); if (ids[id]) return null; ids[id] = 1;
+      return {id:id, name: str(t.name,40)};
+    }).filter(Boolean).slice(0, 200);
+    if (!o.started) o.teams = o.teams.filter(function(t){ return t.name.trim(); });
+    var mids = Object.create(null), ind = o.mode!=="teams";
+    var ms = Array.isArray(v.matches) ? v.matches : Object.keys(obj(v.matches)||{}).map(function(k){ return v.matches[k]; });
+    o.matches = ms.map(function(m){
+      m = obj(m); if (!m) return null;
+      var id = str(m.id,24); if (!id || mids[id]) return null; mids[id] = 1;
+      var side = function(x){
+        if (ind) return (Array.isArray(x) && x.length===2 && ids[x[0]] && ids[x[1]] && x[0]!==x[1]) ? [String(x[0]), String(x[1])] : null;
+        return (typeof x==="string" && ids[x]) ? x : null;
+      };
+      var a = side(m.a), b = side(m.b); if (!a || !b) return null;
+      var out = {id:id, r:int(m.r,1,999,1), i:int(m.i,0,99,0), a:a, b:b, score:cleanScore(m.score)};
+      var lv = cleanLive(m.live); if (lv && !out.score) out.live = lv;
+      return out;
+    }).filter(Boolean).slice(0, 2000);
+    if (o.started && !o.matches.length && !o.teams.length) o.started = false;
+    return o;
+  }
+  function sanitizeHistory(h){
+    h = obj(h); var seen = Object.create(null);
+    var ss = (h && Array.isArray(h.sessions) ? h.sessions : []).map(function(x){
+      x = obj(x); if (!x) return null;
+      var id = str(x.id,24) || uid("s"); if (seen[id]) return null; seen[id]=1;
+      var mode = ["americano","rotating","teams"].indexOf(x.mode)>=0 ? x.mode : "americano";
+      var pts = obj(x.pts) || {};
+      return {id:id, date: /^\d{4}-\d{2}-\d{2}$/.test(String(x.date)) ? String(x.date) : todayISO(), name: str(x.name,60) || "Session", mode:mode,
+        ppm:int(x.ppm,0,99,24), rankBy: x.rankBy==="avg"?"avg":(mode==="americano"?"total":"points"),
+        pts:{w:int(pts.w,-10,10,3), d:int(pts.d,-10,10,1), l:int(pts.l,-10,10,0)}, scoring: x.scoring==="sets"?"sets":"games",
+        players: (Array.isArray(x.players)?x.players:[]).map(function(n){return str(n,40).trim();}).filter(Boolean).slice(0,200),
+        matches: (Array.isArray(x.matches)?x.matches:[]).map(function(m){
+          m = obj(m); if (!m) return null;
+          var A=(Array.isArray(m.a)?m.a:[m.a]).map(function(n){return str(n,40).trim();}).filter(Boolean).slice(0,2);
+          var B=(Array.isArray(m.b)?m.b:[m.b]).map(function(n){return str(n,40).trim();}).filter(Boolean).slice(0,2);
+          if (!A.length || !B.length) return null;
+          var o={r:int(m.r,1,999,1), a:A, b:B, sa:int(m.sa,0,9999,0), sb:int(m.sb,0,9999,0)};
+          if (m.ra!=null && m.rb!=null){ o.ra=int(m.ra,0,9,0); o.rb=int(m.rb,0,9,0); }
+          return o;
+        }).filter(Boolean).slice(0,2000)};
+    }).filter(Boolean).slice(0, 3000);
+    return {sessions: ss};
+  }
   function normalise(v){
-    v = v || {};
+    v = sanitize(v);
     v.name = brand(v.name);
     if (!v.started && Array.isArray(v.teams)) v.teams = v.teams.filter(function(t){ return t && String(t.name||"").trim(); });
     Object.keys(DEFAULT).forEach(function(k){ if (v[k]===undefined) v[k]=JSON.parse(JSON.stringify(DEFAULT[k])); });
@@ -300,6 +381,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     return v;
   }
   var S = normalise(local || JSON.parse(JSON.stringify(DEFAULT)));
+  var shadow = JSON.parse(JSON.stringify(S));
   var ui = {tab: S.started ? "matches" : "setup", unplayedOnly:false, modal:null, resetArmed:false, copied:false};
   var readOnly = false;
   var USE_API = /^https:\/\/script\.google(usercontent)?\.com\//.test(SHEET_API_URL.trim());
@@ -324,11 +406,11 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   /* ---------- persistence (Google Sheet via Apps Script) ---------- */
   var QKEY = LSKEY + "-queue", HKEY = LSKEY + "-history";
   var H = {sessions:[]}, hv = -1, histLoading = false;
-  try { var hh = JSON.parse(localStorage.getItem(HKEY)); if (hh && Array.isArray(hh.sessions)) H = hh; } catch(e){}
+  try { var hh = JSON.parse(localStorage.getItem(HKEY)); if (hh && Array.isArray(hh.sessions)) H = sanitizeHistory(hh); } catch(e){}
   function cacheHistory(){ try { localStorage.setItem(HKEY, JSON.stringify(H)); } catch(e){} }
   function setHistory(h, v){
     if (!h || !Array.isArray(h.sessions)) return;
-    H = h; if (v!=null) hv = v; cacheHistory();
+    H = sanitizeHistory(h); if (v!=null) hv = v; cacheHistory();
     if (loaded && (ui.tab==="overall" || (ui.modal && ui.modal.kind==="session"))) remoteRender();
   }
   function fetchHistory(){
@@ -342,8 +424,12 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   function saveQueue(){ try { localStorage.setItem(QKEY, JSON.stringify((inflight?[inflight]:[]).concat(queue))); } catch(e){} }
   function sameKey(x,y){ return x.op===y.op && (x.op==="setAll" || (x.op==="live" && x.id===y.id)); }
   // finished sessions go through the queue too, so they survive a lost signal
+  var STALE_MS = {setAll: 15*60000, patch: 15*60000, archive: 7*24*3600000, live: 30*60000, score: 12*3600000, addMatches: 30*60000, deleteSession: 24*3600000};
+  function fresh(op){ return !op.qt || (Date.now()-op.qt) < (STALE_MS[op.op] || 3600000); }
   function enqueue(op){
     if (!USE_API) return;
+    op.qt = Date.now();
+    if (op.op==="patch"){ var prev = queue.filter(function(q){ return q.op==="patch"; })[0]; if (prev){ Object.assign(prev.fields, op.fields); prev.qt = op.qt; saveQueue(); clearTimeout(flushTimer); flushTimer = setTimeout(flush, 0); return; } }
     queue = queue.filter(function(q){ return !sameKey(q,op); });
     queue.push(op); saveQueue();
     clearTimeout(flushTimer);
@@ -366,8 +452,12 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   }
   function flush(){
     if (inflight || !queue.length) return;
+    queue = queue.filter(fresh);
+    if (!queue.length){ saveQueue(); renderStatus(); return; }
     var op = queue.shift(); inflight = op; saveQueue(); renderStatus();
     var body = Object.assign({t:TID}, op);
+    // "only if unchanged" checks use the newest version this phone knows at the moment of sending
+    if ((op.op==="setAll" || op.op==="archive") && op.baseV!==-1) body.baseV = shadow._sv || 0;
     if (op.op!=="live") body.sheet = sheetSummary();
     post(body).then(function(res){
       inflight = null;
@@ -375,10 +465,17 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       if (!res || !res.ok){
         var why = (res && res.error) || "unknown error";
         diag.post = "Sheet replied with an error: " + why + " (" + op.op + ")";
+        if (why==="conflict"){
+          // someone else changed the fixtures first: keep theirs, tell this phone
+          ui.notice = "Someone else changed the session at the same moment, so your change wasn\u2019t applied. Check and try again if needed.";
+          net = "live"; if (res.state){ ver = res.v; applyRemote(res.state); }
+          saveQueue(); if (queue.length) setTimeout(flush, 200); else { render(); poll(); }
+          return;
+        }
         if (/No tournament yet/i.test(why)){
           // sheet is empty: send the whole tournament first (it already includes this change)
-          queue = queue.filter(function(q){ return q.op!=="setAll"; });
-          queue.unshift({op:"setAll", state:JSON.parse(JSON.stringify(S))});
+          queue = queue.filter(function(q){ return q.op!=="setAll" && q.op!=="patch"; });
+          queue.unshift({op:"setAll", state:JSON.parse(JSON.stringify(S)), qt:Date.now()});
           saveQueue(); setTimeout(flush, 200); return;
         }
         net = "error"; saveQueue(); renderStatus();
@@ -387,6 +484,10 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       }
       diag.post = "OK \u2013 saved (" + op.op + ")";
       net = "live"; ver = res.v; saveQueue();
+      // our own fixtures/results change moved the structure version on by one: remember that,
+      // unless someone else also changed it in between (then a later fixtures change is rightly refused)
+      var bump = (op.op==="setAll" || op.op==="score" || op.op==="addMatches" || op.op==="archive") ? 1 : 0;
+      if (res.state && typeof res.state._sv==="number" && res.state._sv === (shadow._sv||0) + bump){ shadow._sv = res.state._sv; S._sv = res.state._sv; }
       if (res.history && !queue.some(function(q){return q.op==="archive"||q.op==="deleteSession";})) setHistory(res.history, res.hv);
       if (!queue.length && res.state) applyRemote(res.state);
       if (queue.length) flush(); else { renderStatus(); if (!polling) poll(); }
@@ -404,7 +505,8 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     if (anyLive && (ui.tab==="matches" || ui.tab==="table" || WATCH)) return 1500;
     return 3500;
   }
-  var polling = false;
+  var polling = false, skew = 0;
+  function nowS(){ return Date.now() + skew; }
   function poll(){
     clearTimeout(pollTimer);
     if (!USE_API) return;
@@ -416,6 +518,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       .then(readJSON)
       .then(function(res){
         diag.getAt = Date.now();
+        if (res && typeof res.now==="number"){ var est = res.now - (Date.now() - (Date.now()-startedAt)/2); if (Math.abs(est) < 864e5) skew = Math.abs(est-skew) > 250 ? est : skew; }
         diag.get = (res && res.ok) ? "OK \u2013 sheet version " + res.v + (res.state===null ? " (empty sheet)" : "") : "Sheet replied with an error: " + ((res && res.error) || "unknown");
         if (!res || res.error){ net = "error"; if (!loaded){ loaded = true; render(); } else renderStatus(); return; }
         net = "live";
@@ -426,7 +529,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
             if (res.v > ver && !inflight && !queue.length){ ver = res.v; applyRemote(res.state); }
           } else if (first){
             // empty sheet: upload what this phone has, ahead of any older waiting changes
-            queue = [{op:"setAll", state:JSON.parse(JSON.stringify(S))}]; saveQueue(); setTimeout(flush, 0);
+            queue = [{op:"setAll", state:JSON.parse(JSON.stringify(S)), baseV:-1, qt:Date.now()}]; saveQueue(); setTimeout(flush, 0);
           }
         }
         if (first){ loaded = true; ui.tab = S.started ? "matches" : "setup"; render(); maybeWelcome(); } else renderStatus();
@@ -440,7 +543,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       });
   }
   function applyRemote(v){
-    S = normalise(v); cacheLocal();
+    S = normalise(v); cacheLocal(); shadow = JSON.parse(JSON.stringify(S));
     if (ui.modal && ui.modal.m && ui.modal.m.id){ // keep an open score sheet pointing at the fresh match object
       var fresh = S.matches.filter(function(m){return m.id===ui.modal.m.id;})[0];
       if (fresh && !(ui.modal.kind==="live" && fresh.score)) ui.modal.m = fresh; else ui.modal = null;
@@ -448,8 +551,22 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     if (loaded) remoteRender();
   }
   // whole-tournament write: setup changes, generating fixtures, reset
+  // Settings/names/players: send everything EXCEPT the matches, so a phone that's a few seconds
+  // behind can never wipe scores someone else just saved.
   function commit(){
     S.updatedAt = Date.now(); cacheLocal();
+    var f = {}, n = 0;
+    Object.keys(S).forEach(function(k){
+      if (k==="matches" || k==="_sv" || k==="updatedAt" || k==="started" || k==="startedAt") return;
+      if (JSON.stringify(S[k]) !== JSON.stringify(shadow[k])){ f[k] = JSON.parse(JSON.stringify(S[k])); n++; }
+    });
+    shadow = JSON.parse(JSON.stringify(S));
+    if (n) enqueue({op:"patch", fields:f});
+    render();
+  }
+  // Fixtures created or cleared: the whole tournament, but only if nobody else changed it meanwhile
+  function commitAll(){
+    S.updatedAt = Date.now(); cacheLocal(); shadow = JSON.parse(JSON.stringify(S));
     enqueue({op:"setAll", state:JSON.parse(JSON.stringify(S))});
     render();
   }
@@ -512,7 +629,9 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     if (net==="connecting") return ["Connecting…",""];
     return ["● Live",""];
   }
+  var lastWatchOff = null;
   function renderStatus(){
+    if (WATCH){ var off = net==="offline" || net==="error"; if (off!==lastWatchOff){ lastWatchOff=off; if (loaded) render(); } return; }
     var el = document.getElementById("status"); if(!el) return;
     var s = statusText(); el.textContent = s[0]; el.className = "status " + s[1];
   }
@@ -524,7 +643,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   }
   function connect(){
     if (!USE_API) return;
-    try { var q = JSON.parse(localStorage.getItem(QKEY)); if (Array.isArray(q)) queue = q; } catch(e){}
+    try { var q = JSON.parse(localStorage.getItem(QKEY)); if (Array.isArray(q)) queue = q.filter(function(o){ return obj(o) && typeof o.op==="string" && o.qt && fresh(o); }); saveQueue(); } catch(e){}
     document.addEventListener("visibilitychange", function(){ if (!document.hidden){ poll(); flush(); } });
     window.addEventListener("online", function(){ flush(); poll(); });
     poll(); if (queue.length) setTimeout(flush, 500);
@@ -645,7 +764,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   }
   function ordered(){ return S.matches.slice().sort(function(x,y){return x.r-y.r||x.i-y.i;}); }
   function standingsTeams(){
-    var rows={};
+    var rows=Object.create(null);
     S.teams.forEach(function(t){ rows[t.id]={id:t.id,name:t.name||"Unnamed",p:0,w:0,d:0,l:0,gf:0,ga:0,sf:0,sa:0,pts:0,form:[]}; });
     ordered().forEach(function(m){
       var r=result(m); if(!r||!rows[m.a]||!rows[m.b]) return;
@@ -670,7 +789,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     return s;
   }
   function standingsRot(){
-    var rows={};
+    var rows=Object.create(null);
     S.teams.forEach(function(t){ rows[t.id]={id:t.id,name:t.name||"Unnamed",p:0,w:0,d:0,l:0,gf:0,ga:0,sf:0,sa:0,pts:0,form:[]}; });
     ordered().forEach(function(m){
       var r=result(m); if(!r) return;
@@ -684,7 +803,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     return list;
   }
   function standingsAm(){
-    var rows={};
+    var rows=Object.create(null);
     S.teams.forEach(function(t){ rows[t.id]={id:t.id,name:t.name||"Unnamed",p:0,w:0,d:0,l:0,pf:0,pa:0,form:[]}; });
     ordered().forEach(function(m){
       var r=result(m); if(!r) return;
@@ -714,6 +833,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       '<div class="hdr-r"><button class="help" data-act="guide" aria-label="Help and user guide">?</button>' +
       '<button id="status" data-act="diag" class="status '+st[1]+'">'+esc(st[0])+'</button></div></header>';
     if (readOnly) h += '<div class="banner">You can view this tracker but not edit it.</div>';
+    if (ui.notice) h += '<div class="banner" style="color:var(--ink);border-color:#e0a100">'+esc(ui.notice)+'</div>';
     if (ui.tab==="rules" && !AM()) ui.tab="setup";
     var tabs = AM() ? ["matches","table","overall","rules","setup"] : ["matches","table","overall","setup"];
     h += '<nav class="tabs">' + tabs.map(function(t){
@@ -751,7 +871,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       anyShown=true;
       var done = ms.filter(function(m){return m.score;}).length;
       h += '<div class="round-h"><h2>Round '+r+'</h2><span>'+done+'/'+ms.length+' done</span></div>';
-      var inRound={}; ms.forEach(function(m){ [].concat(m.a,m.b).forEach(function(p){inRound[p]=1;}); });
+      var inRound=Object.create(null); ms.forEach(function(m){ [].concat(m.a,m.b).forEach(function(p){inRound[p]=1;}); });
       var sitting = S.teams.filter(function(t){return !inRound[t.id];});
       if (sitting.length) h += '<div class="bye">Sitting out: '+sitting.map(function(t){return esc(t.name||"Unnamed");}).join(", ")+'</div>';
       var waves = Math.ceil(ms.length/courts);
@@ -790,9 +910,9 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       pts:S.pts, scoring:S.scoring, players:S.teams.map(function(t){return t.name;}), matches:ms};
   }
   function aggregate(sessions){
-    var rows={};
+    var rows=Object.create(null);
     sessions.forEach(function(ss){
-      var seen={}, lpts = ss.pts || {w:3,d:1,l:0};
+      var seen=Object.create(null), lpts = ss.pts || {w:3,d:1,l:0};
       ss.matches.forEach(function(m){
         var res = (m.ra!=null) ? (m.ra>m.rb?"a":m.rb>m.ra?"b":"d") : (m.sa>m.sb?"a":m.sb>m.sa?"b":"d");
         [["a",m.a,m.sa,m.sb],["b",m.b,m.sb,m.sa]].forEach(function(sd){
@@ -950,7 +1070,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   function lc(n){ return String(n||"").trim().toLowerCase(); }
   function splitPair(n){ var p=String(n||"").split(/\s*(?:&|\+|\/|\band\b)\s*/i).map(function(x){return x.trim();}).filter(Boolean); return p.length===2 ? p : [String(n||"").trim()]; }
   function knownPlayers(){
-    var seen={}, out=[], hidden={};
+    var seen=Object.create(null), out=[], hidden=Object.create(null);
     (S.rosterHidden||[]).forEach(function(n){ hidden[lc(n)]=1; });
     function add(n){
       n=String(n||"").trim(); var k=lc(n); if(!n||hidden[k]) return;
@@ -989,7 +1109,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     }
   }
   function addPlayer(name){
-    name=String(name||"").replace(/\s+/g," ").trim().replace(/(^|[\s\-'])([a-z])/g,function(m,a,b){return a+b.toUpperCase();}); if(!name) return;
+    name=str(name,40).replace(/\s+/g," ").trim().replace(/(^|[\s\-'])([a-z])/g,function(m,a,b){return a+b.toUpperCase();}); if(!name) return;
     var k=lc(name), existing=knownPlayers().filter(function(n){return lc(n)===k;})[0];
     S.rosterHidden=(S.rosterHidden||[]).filter(function(n){return lc(n)!==k;});
     if (!existing){ S.roster=(S.roster||[]).concat([name]); existing=name; }
@@ -1025,7 +1145,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     if (!edit) h += '<button class="pchip add" data-act="roster-add">+ Add</button>';
     h += '</div>';
     if (ui.addingPlayer && !edit){
-      h += '<div class="paddrow"><input type="text" data-newplayer placeholder="New player\u2019s name" autocomplete="off" autocapitalize="words" enterkeyhint="done">' +
+      h += '<div class="paddrow"><input type="text" maxlength="40" data-newplayer placeholder="New player\u2019s name" autocomplete="off" autocapitalize="words" enterkeyhint="done">' +
         '<button class="btn" data-act="roster-save">Add</button></div>';
     }
     if (!am && S.teams.length && !edit){
@@ -1053,7 +1173,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
         '<button data-mode="rotating" class="'+(S.mode==="rotating"?"on":"")+'">Rotating pairs<small>New partners \u00b7 games &amp; sets</small></button>' +
         '<button data-mode="teams" class="'+(S.mode==="teams"?"on":"")+'">Fixed pairs<small>Same partner \u00b7 games &amp; sets</small></button></div></div>';
     }
-    h += '<div><label class="f">Event name</label><input type="text" data-field="name" value="'+esc(S.name)+'"'+dis+'></div>';
+    h += '<div><label class="f">Event name</label><input type="text" data-field="name" maxlength="60" value="'+esc(S.name)+'"'+dis+'></div>';
     if (!S.started && !readOnly){ h += viewPlayerPicker(); }
     else {
     h += '<div><label class="f">'+who+' ('+S.teams.length+')</label>';
@@ -1314,7 +1434,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   function clockOf(m){
     var lv=(m&&m.live)||{}, total=(S.matchMins|0)*60000+(lv.ex||0);
     if (!timerOn() || !lv.ts) return {on:timerOn(), started:false, paused:false, total:total, left:total, up:false};
-    var now=Date.now(), el=now-lv.ts-(lv.pt||0)-(lv.pa? now-lv.pa : 0), left=Math.max(0,total-el);
+    var now=nowS(), el=now-lv.ts-(lv.pt||0)-(lv.pa? now-lv.pa : 0), left=Math.max(0,total-el);
     return {on:true, started:true, paused:!!lv.pa, total:total, left:left, up:left<=0};
   }
   function fmtClock(ms){ var s=Math.ceil(ms/1000), m=Math.floor(s/60); return m+":"+("0"+(s%60)).slice(-2); }
@@ -1443,7 +1563,8 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       return '<button class="wz w'+s+(servingSide===s?" serving":"")+(win?" won":"")+'" data-live="'+s+'"'+(done||readOnly?" disabled":"")+'>' +
         '<span class="wn">'+esc(sideShort(m,s))+'</span><span class="wp">'+esc(String(label))+'</span></button>';
     }
-    return ring + '<div class="wsc">' + zone("a",la,winA) + mid + zone("b",lb,winB) + '</div>';
+    var off = (net==="offline"||net==="error") ? '<div style="position:fixed;top:4vmin;left:0;right:0;text-align:center;z-index:4;font-size:5vmin;color:#ff5a4f;font-weight:700">\u25cf offline \u2013 will sync</div>' : '';
+    return ring + off + '<div class="wsc">' + zone("a",la,winA) + mid + zone("b",lb,winB) + '</div>';
   }
 
   function viewLive(){
@@ -1618,7 +1739,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   /* ---------- events ---------- */
   function findMatch(id){for(var i=0;i<S.matches.length;i++) if(S.matches[i].id===id) return S.matches[i]; return null;}
   function setSingle(s,v){
-    var md=ui.modal; v=Math.max(0, v|0); md[s][0]=v;
+    var md=ui.modal; v=Math.min(999, Math.max(0, v|0)); md[s][0]=v;
     if (AM() && S.ppm){ var o = s==="a"?"b":"a"; md[o][0]=Math.max(0,S.ppm-v); var el=app.querySelector('[data-single="'+o+'"]'); if(el) el.value=md[o][0]; }
     md.err="";
   }
@@ -1628,6 +1749,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     if (t.dataset.act==="close-bg" && e.target!==t) return;
     var d = t.dataset;
     if (d.act!=="reset" && ui.resetArmed){ ui.resetArmed=false; }
+    if (ui.notice && !d.tab) ui.notice=null;
     if (d.act!=="finish" && ui.finishArmed){ ui.finishArmed=false; }
     if (d.act!=="live-save" && ui.liveSaveArmed){ ui.liveSaveArmed=false; }
     if (d.act!=="del-session" && ui.delArmed){ ui.delArmed=false; }
@@ -1663,8 +1785,8 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       mm.live = Object.assign({}, mm.live||{}, {h:LL.h+d.live, t:Date.now()});
       if (timerOn()){
         primeAudio();
-        if (!mm.live.ts){ mm.live.ts=Date.now(); mm.live.pt=0; mm.live.pa=0; }
-        else if (mm.live.pa){ mm.live.pt=(mm.live.pt||0)+(Date.now()-mm.live.pa); mm.live.pa=0; }
+        if (!mm.live.ts){ mm.live.ts=nowS(); mm.live.pt=0; mm.live.pa=0; }
+        else if (mm.live.pa){ mm.live.pt=(mm.live.pt||0)+(nowS()-mm.live.pa); mm.live.pa=0; }
       }
       try { navigator.vibrate && navigator.vibrate(12); } catch(e){}
       commitLive(mm); return;
@@ -1703,7 +1825,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
         setTimeout(function(){
           S.matches = IND() ? scheduleAmericano([], amRounds()) : generateTeams();
           S.startedAt = Date.now();
-          S.started = true; ui.tab="matches"; commit(); window.scrollTo(0,0);
+          S.started = true; ui.tab="matches"; commitAll(); window.scrollTo(0,0);
         }, 30);
         break;
       case "add-round":
@@ -1727,7 +1849,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
         break;
       case "reset":
         if (!ui.resetArmed){ ui.resetArmed=true; render(); }
-        else { ui.resetArmed=false; S.matches=[]; S.started=false; ui.tab="setup"; commit(); }
+        else { ui.resetArmed=false; S.matches=[]; S.started=false; ui.tab="setup"; commitAll(); }
         break;
       case "close": case "close-bg": if (ui.modal && ui.modal.kind==="welcome") markGuideSeen(); ui.modal=null; pendingRender=false; render(); break;
       case "guide": ui.modal = {kind:"guide"}; render(); break;
@@ -1748,7 +1870,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
         commitLive(um); break;
       case "clock-start": case "clock-pause": case "clock-add":
         primeAudio();
-        var km=ui.modal.m, kl=Object.assign({h:""}, km.live||{}), now=Date.now();
+        var km=ui.modal.m, kl=Object.assign({h:""}, km.live||{}), now=nowS();
         if (d.act==="clock-start"){ kl.ts=now; kl.pt=0; kl.pa=0; firedUp[km.id]=false; }
         else if (d.act==="clock-pause"){ if (kl.pa){ kl.pt=(kl.pt||0)+(now-kl.pa); kl.pa=0; } else kl.pa=now; }
         else { kl.ex=(kl.ex||0)+60000; firedUp[km.id]=false; }
@@ -1774,14 +1896,14 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
 
   app.addEventListener("input", function(e){
     var el=e.target;
-    if (el.dataset.set){ var v=el.value===""?null:Math.max(0,parseInt(el.value,10)||0); ui.modal[el.dataset.set][+el.dataset.i]=v; ui.modal.err=""; }
+    if (el.dataset.set){ var v=el.value===""?null:Math.min(99,Math.max(0,parseInt(el.value,10)||0)); ui.modal[el.dataset.set][+el.dataset.i]=v; ui.modal.err=""; }
     if (el.dataset.single && el.value!==""){ setSingle(el.dataset.single, parseInt(el.value,10)||0); }
   });
   app.addEventListener("focusin", function(e){ if (e.target.classList && e.target.classList.contains("val")) e.target.select(); });
   app.addEventListener("change", function(e){
     var el=e.target, d=el.dataset;
-    if (d.team){ var tm=team(d.team); if(tm){ tm.name=el.value.trim(); commit(); } }
-    else if (d.field==="name"){ S.name=el.value.trim()||"Padel Palz"; commit(); }
+    if (d.team){ var tm=team(d.team); if(tm){ tm.name=str(el.value,40).trim(); commit(); } }
+    else if (d.field==="name"){ S.name=str(el.value,60).trim()||"Padel Palz"; commit(); }
     else if (d.field==="courts"){ S.courts=Math.max(1,Math.min(20,parseInt(el.value,10)||1)); commit(); }
     else if (d.field==="mins"){ S.matchMins=Math.max(0,Math.min(180,parseInt(el.value,10)||0)); commit(); }
     else if (d.field==="rounds"){ S.rounds=Math.max(0,Math.min(60,parseInt(el.value,10)||0)); commit(); }
