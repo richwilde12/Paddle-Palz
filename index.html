@@ -339,7 +339,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     queue = queue.filter(function(q){ return !sameKey(q,op); });
     queue.push(op); saveQueue();
     clearTimeout(flushTimer);
-    flushTimer = setTimeout(flush, op.op==="live" ? 250 : 0);
+    flushTimer = setTimeout(flush, op.op==="live" ? 120 : 0);
   }
   var diag = {get:"Not tried yet", post:"Nothing sent yet", getAt:0, postAt:0};
   function readJSON(r){
@@ -381,7 +381,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       net = "live"; ver = res.v; saveQueue();
       if (res.history && !queue.some(function(q){return q.op==="archive"||q.op==="deleteSession";})) setHistory(res.history, res.hv);
       if (!queue.length && res.state) applyRemote(res.state);
-      if (queue.length) flush(); else renderStatus();
+      if (queue.length) flush(); else { renderStatus(); if (!polling) poll(); }
     }).catch(function(e){
       diag.post = "Couldn\u2019t save: " + errText(e); diag.postAt = Date.now();
       if (!(op.op==="live" && queue.some(function(q){return sameKey(q,op);}))) queue.unshift(op);
@@ -389,11 +389,21 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       setTimeout(flush, 4000);
     });
   }
+  // How often to check the sheet: fast while a match is being scored, slower when nothing is happening
+  function pollEvery(){
+    if (ui.modal && ui.modal.kind==="live") return 1000;
+    var anyLive = S.matches.some(function(m){ return !m.score && m.live && (m.live.h || m.live.ts); });
+    if (anyLive && (ui.tab==="matches" || ui.tab==="table" || WATCH)) return 1500;
+    return 3500;
+  }
+  var polling = false;
   function poll(){
     clearTimeout(pollTimer);
-    var next = (ui.modal && ui.modal.kind==="live") ? 2000 : 3500;
     if (!USE_API) return;
-    if (document.hidden){ pollTimer = setTimeout(poll, next); return; }
+    if (polling) return;                       // one check at a time
+    if (document.hidden){ pollTimer = setTimeout(poll, 3500); return; }
+    polling = true;
+    var startedAt = Date.now();
     fetch(SHEET_API_URL.trim() + "?t=" + encodeURIComponent(TID) + "&since=" + ver, {cache:"no-store"})
       .then(readJSON)
       .then(function(res){
@@ -415,7 +425,11 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
         if (queue.length && !inflight) flush();
       })
       .catch(function(e){ diag.get = "Couldn\u2019t read: " + errText(e); diag.getAt = Date.now(); net = loaded ? "offline" : "error"; if (!loaded){ loaded = true; render(); } else renderStatus(); })
-      .then(function(){ pollTimer = setTimeout(poll, next); });
+      .then(function(){
+        polling = false;
+        // time the next check from when this one started, so slow replies don't stretch the gap
+        pollTimer = setTimeout(poll, Math.max(150, pollEvery() - (Date.now() - startedAt)));
+      });
   }
   function applyRemote(v){
     S = normalise(v); cacheLocal();
@@ -970,11 +984,12 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   }
 
   function timeSetting(dis){
-    var v=S.matchMins|0, presets=[0,10,15,20,25,30], custom = presets.indexOf(v)<0;
+    var v=S.matchMins|0, presets=[0,5,10,15], custom = v>0 && presets.indexOf(v)<0, other = custom || !!ui.minsOther;
     return '<div><label class="f">Time per match</label><div class="seg">' + presets.map(function(x){
-        return '<button data-mins="'+x+'" class="'+(v===x?"on":"")+'"'+dis+'>'+(x?x:"Off")+'</button>'; }).join("") + '</div>' +
-      '<div class="row" style="margin-top:8px"><input type="number" min="1" max="180" inputmode="numeric" data-field="mins" placeholder="Other (minutes)" value="'+(custom&&v?v:"")+'"'+dis+'></div>' +
-      '<div class="hint">'+(v ? 'A '+v+'-minute countdown runs on the live scoring screen. It starts with the first point'+(AM()?'':', and games count until time\u2019s up')+'.' : 'Add a countdown to live scoring.')+'</div></div>';
+        return '<button data-mins="'+x+'" class="'+(v===x && !other?"on":"")+'"'+dis+'>'+(x?x+" min":"Off")+'</button>'; }).join("") +
+      '<button data-act="mins-other" class="'+(other?"on":"")+'"'+dis+'>'+(custom?v+" min":"Other")+'</button></div>' +
+      (other ? '<div class="row" style="margin-top:8px"><input type="number" min="1" max="180" inputmode="numeric" data-field="mins" placeholder="Minutes, e.g. 12" value="'+(custom?v:"")+'"'+dis+'></div>' : '') +
+      '<div class="hint">'+(v ? 'A '+v+'-minute countdown runs on the live scoring screen. It starts with the first point'+(AM()?'':', and games count until time\u2019s up')+'.' : other ? 'Type the number of minutes.' : 'Add a countdown to live scoring.')+'</div></div>';
   }
 
   function viewSetup(){
@@ -1001,8 +1016,8 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     if (am){
       if (!S.started){
         h += '<div class="grid2"><div><label class="f">Courts</label><input type="number" min="1" max="20" inputmode="numeric" data-field="courts" value="'+S.courts+'"></div>' +
-          '<div><label class="f">Rounds</label><input type="number" min="1" max="60" inputmode="numeric" data-field="rounds" placeholder="Auto" value="'+(S.rounds>0?S.rounds:"")+'"></div></div>';
-        h += '<div class="hint" style="margin-top:-8px">Leave rounds blank to play enough for everyone to partner everyone'+(S.teams.length>=4?' ('+autoRounds(S.teams.length)+' rounds)':'')+'.</div>';
+          '<div><label class="f">Rounds</label><input type="number" min="1" max="60" inputmode="numeric" data-field="rounds" placeholder="Auto" value="'+(S.rounds>0?S.rounds:"")+'">' +
+          '<div class="hint">Leave blank and everyone partners everyone'+(S.teams.length>=4?' ('+autoRounds(S.teams.length)+' rounds)':'')+'.</div></div></div>';
       }
       h += '<div><label class="f">Points per match</label><div class="seg">' + [16,21,24,32,0].map(function(v){
         return '<button data-ppm="'+v+'" class="'+(S.ppm===v?"on":"")+'"'+dis+'>'+(v?v:"Timed")+'</button>'; }).join("") + '</div>' +
@@ -1560,7 +1575,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     if (d.act!=="live-save" && ui.liveSaveArmed){ ui.liveSaveArmed=false; }
     if (d.act!=="del-session" && ui.delArmed){ ui.delArmed=false; }
     if (d.gsec){ ui.guideOpen = ui.guideOpen || {}; ui.guideOpen[d.gsec] = !ui.guideOpen[d.gsec]; render(); return; }
-    if (d.mins!=null && t.hasAttribute("data-mins")){ S.matchMins=+d.mins; commit(); return; }
+    if (d.mins!=null && t.hasAttribute("data-mins")){ S.matchMins=+d.mins; ui.minsOther=false; commit(); return; }
     if (d.deuce){ S.deuce=d.deuce; commit(); return; }
     if (d.third){ S.thirdSet=d.third; commit(); return; }
     if (t.hasAttribute("data-pick")){ togglePlayer(t.getAttribute("data-pick")); commit(); return; }
@@ -1613,6 +1628,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     if (d.del){ S.teams = S.teams.filter(function(x){return x.id!==d.del;}); commit(); return; }
     switch(d.act){
       case "toggle-unplayed": ui.unplayedOnly=!ui.unplayedOnly; render(); break;
+      case "mins-other": ui.minsOther=true; render(); setTimeout(function(){ var i=app.querySelector("[data-field=mins]"); if(i){ i.focus(); i.select(); } },30); break;
       case "roster-edit": ui.rosterEdit=!ui.rosterEdit; ui.addingPlayer=false; render(); break;
       case "roster-add": ui.addingPlayer=true; render(); setTimeout(function(){ var i=app.querySelector("[data-newplayer]"); if(i) i.focus(); },30); break;
       case "roster-save":
