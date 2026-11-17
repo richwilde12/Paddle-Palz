@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Paddle Palz</title>
+<title>Padel Palz</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon.ico" sizes="32x32">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#1f7a4d">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Paddle Palz">
+<meta name="apple-mobile-web-app-title" content="Padel Palz">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style id="app-css">
@@ -266,7 +266,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
 <script id="app-src">
 (function(){
   "use strict";
-  var DEFAULT = {v:2,mode:"teams",name:"Paddle Palz",scoring:"games",pts:{w:3,d:1,l:0},courts:2,double:false,
+  var DEFAULT = {v:2,mode:"teams",name:"Padel Palz",scoring:"games",pts:{w:3,d:1,l:0},courts:2,double:false,
     ppm:24,rounds:0,rankBy:"total",minMatches:0,startedAt:0,deuce:"advantage",thirdSet:"set",matchMins:0,roster:[],rosterHidden:[],picks:null,
     teams:[{id:"t1",name:""},{id:"t2",name:""},{id:"t3",name:""},{id:"t4",name:""}],
     matches:[],started:false,updatedAt:0};
@@ -282,7 +282,10 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   var LSKEY = "rr-tracker-state" + (TID==="main" ? "" : "-"+TID);
   var local = null;
   try { local = JSON.parse(localStorage.getItem(LSKEY)); } catch(e){}
-  function brand(n){ return (!n || n==="Paddle Round Robin") ? "Paddle Palz" : n; }
+  function brand(n){
+    if (!n || /^padd?le round robin$/i.test(n)) return "Padel Palz";
+    return String(n).replace(/\bpaddle\b/gi, function(w){ return w[0]==="P" ? "Padel" : "padel"; });
+  }
   function normalise(v){
     v = v || {};
     v.name = brand(v.name);
@@ -683,7 +686,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     if (WATCH){ app.innerHTML = renderWatch(); keepAwake(!!(ui.modal && ui.modal.kind==="live")); return; }
     var played = S.matches.filter(function(m){return m.score;}).length, total=S.matches.length;
     var st = statusText(), who = AM() ? "players" : "teams";
-    var h = '<div class="wrap"><header><div><h1>'+esc(S.name||"Paddle Palz")+'</h1>' +
+    var h = '<div class="wrap"><header><div><h1>'+esc(S.name||"Padel Palz")+'</h1>' +
       '<div class="sub">'+(S.started? played+' of '+total+' matches played · '+S.teams.length+' '+who+(AM()?' · Americano':'') : 'Set up your '+who+' to get started')+'</div></div>' +
       '<div class="hdr-r"><button class="help" data-act="guide" aria-label="Help and user guide">?</button>' +
       '<button id="status" data-act="diag" class="status '+st[1]+'">'+esc(st[0])+'</button></div></header>';
@@ -1327,14 +1330,14 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     var parts=teamPlayers(v); return /\((1st|2nd)\)$/.test(parts[0]) ? shortName(tname(v)) : parts.map(shortName).join(" & ");
   }
   function renderWatch(){
-    if (!loaded) return '<div class="wl"><div class="wh">Paddle Palz</div><div class="wmsg">Connecting\u2026</div></div>';
+    if (!loaded) return '<div class="wl"><div class="wh">Padel Palz</div><div class="wmsg">Connecting\u2026</div></div>';
     if (ui.modal && ui.modal.kind==="live" && ui.modal.m && findMatch(ui.modal.m.id)) return watchScorer(ui.modal.m);
     ui.modal = null;
     return watchList();
   }
   function watchList(){
     var bad = net==="offline" || net==="error";
-    var h = '<div class="wl"><div class="wh">Paddle Palz<i class="'+(bad?"off":"")+'"></i></div>';
+    var h = '<div class="wl"><div class="wh">Padel Palz<i class="'+(bad?"off":"")+'"></i></div>';
     if (!S.started) return h + '<div class="wmsg">No fixtures yet.<br>Set up the session on a phone.</div></div>';
     var todo = S.matches.filter(function(m){return !m.score;}).sort(function(x,y){
       var lx = x.live&&(x.live.h||x.live.ts)?0:1, ly = y.live&&(y.live.h||y.live.ts)?0:1;
@@ -1446,24 +1449,24 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   }
 
   /* ---------- user guide ---------- */
-  var GKEY = "paddle-palz-guide-seen";
-  function guideSeen(){ try { return !!localStorage.getItem(GKEY); } catch(e){ return true; } }
+  var GKEY = "padel-palz-guide-seen";
+  function guideSeen(){ try { return !!(localStorage.getItem(GKEY) || localStorage.getItem("pad"+"dle-palz-guide-seen")); } catch(e){ return true; } }
   function markGuideSeen(){ try { localStorage.setItem(GKEY, "1"); } catch(e){} }
   function maybeWelcome(){ if (WATCH) return; if (!guideSeen() && !ui.modal){ ui.modal = {kind:"welcome"}; render(); } }
   function viewWelcome(){
-    return '<div class="scrim"><div class="sheet guide"><h3>Welcome to Paddle Palz \ud83c\udfbe</h3>' +
+    return '<div class="scrim"><div class="sheet guide"><h3>Welcome to Padel Palz \ud83c\udfbe</h3>' +
       '<p class="hint" style="margin:4px 0 0">Scores and tables for our padel nights. Everyone with the link sees the same scores, live.</p>' +
       '<ol class="steps3">' +
       '<li><div><b>Find your match</b><small>The <b>Matches</b> tab lists every round, with your court and partner. If you\u2019re sitting out, it says so at the top of the round.</small></div></li>' +
       '<li><div><b>Add the score</b><small>Tap your match. Enter the final score, or tap <b>\u25b6 Score live</b> and tap the pair that wins each rally.</small></div></li>' +
       '<li><div><b>Check the tables</b><small><b>Today</b> is tonight\u2019s standings. <b>Overall</b> ranks everyone by average points per match across every session.</small></div></li>' +
       '</ol>' +
-      '<p class="hint">Tip: add Paddle Palz to your home screen so it opens like an app. The full guide explains how.</p>' +
+      '<p class="hint">Tip: add Padel Palz to your home screen so it opens like an app. The full guide explains how.</p>' +
       '<div class="actions"><button class="btn" data-act="welcome-done">Let\u2019s play</button>' +
       '<button class="btn ghost" data-act="guide-full">Read the full guide</button></div></div></div>';
   }
   var GUIDE = [
-    ["start","What is Paddle Palz?",
+    ["start","What is Padel Palz?",
       '<p>A scoreboard for our padel sessions. It sets out who plays who and on which court, keeps score, and works out the tables. Everything saves to a shared Google Sheet, so every phone sees the same thing within a few seconds.</p>' +
       '<p>Usually we play <b>Americano</b>: you get a new partner each round, and you keep every point your pair wins. The player with the most points wins the night.</p>'],
     ["find","Finding your match",
@@ -1505,7 +1508,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     ["home","Add it to your home screen",
       '<p><b>iPhone (Safari):</b> tap the Share button \u2192 <b>Add to Home Screen</b> \u2192 Add.</p>' +
       '<p><b>Android (Chrome):</b> tap the \u22ee menu \u2192 <b>Add to Home screen</b> or <b>Install app</b>.</p>' +
-      '<p>It then opens full screen with the Paddle Palz icon.</p>'],
+      '<p>It then opens full screen with the Padel Palz icon.</p>'],
     ["faq","Quick answers",
       '<p><b>Someone has to leave early?</b> Carry on. If players end up with different numbers of matches, the organiser can switch Setup \u2192 <b>Rank players by \u2192 Average per match</b>.</p>' +
       '<p><b>Two people entered the same match?</b> The last one saved wins. Open the match and correct it if needed.</p>' +
@@ -1513,7 +1516,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   ];
   function viewGuide(){
     var open = ui.guideOpen || {};
-    var h = '<div class="scrim" data-act="close-bg"><div class="sheet guide"><h3>Paddle Palz guide</h3>' +
+    var h = '<div class="scrim" data-act="close-bg"><div class="sheet guide"><h3>Padel Palz guide</h3>' +
       '<p class="hint" style="margin:2px 0 6px">Tap a topic to open it.</p>';
     GUIDE.forEach(function(g){
       var on = !!open[g[0]];
@@ -1722,7 +1725,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   app.addEventListener("change", function(e){
     var el=e.target, d=el.dataset;
     if (d.team){ var tm=team(d.team); if(tm){ tm.name=el.value.trim(); commit(); } }
-    else if (d.field==="name"){ S.name=el.value.trim()||"Paddle Palz"; commit(); }
+    else if (d.field==="name"){ S.name=el.value.trim()||"Padel Palz"; commit(); }
     else if (d.field==="courts"){ S.courts=Math.max(1,Math.min(20,parseInt(el.value,10)||1)); commit(); }
     else if (d.field==="mins"){ S.matchMins=Math.max(0,Math.min(180,parseInt(el.value,10)||0)); commit(); }
     else if (d.field==="rounds"){ S.rounds=Math.max(0,Math.min(60,parseInt(el.value,10)||0)); commit(); }
