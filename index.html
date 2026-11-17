@@ -135,6 +135,25 @@ input:focus,select:focus{border-color:var(--accent)}
 .err{color:var(--loss);font-size:13px;margin-top:8px}
 .banner{font-size:13px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);margin-bottom:12px;color:var(--muted)}
 .busy{opacity:.6;pointer-events:none}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:7px;margin-top:8px}
+.pchip{position:relative;height:42px;border-radius:12px;border:1.5px solid var(--line);background:var(--bg);font-weight:600;font-size:14px;padding:0 8px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;-webkit-tap-highlight-color:transparent;transition:background .12s,border-color .12s,transform .08s}
+.pchip:active{transform:scale(.96)}
+.pchip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.pchip.on:before{content:"\2713  ";font-weight:800}
+.pchip.pending{background:var(--ball);border-color:var(--ball);color:#14201a}
+.pchip .tb{position:absolute;top:3px;right:4px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;font-size:10px;font-weight:800;line-height:17px;color:#14201a}
+.pchip.edit{border-style:dashed;color:var(--loss)}
+.pchip.edit:after{content:"  \2715"}
+.pchip.add{border-style:dashed;color:var(--accent);background:transparent}
+.phead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.phead .acts{display:flex;gap:6px}
+.phead .chip{padding:5px 10px;font-size:12px}
+.paddrow{display:flex;gap:8px;margin-top:10px}
+.paddrow .btn{width:auto;padding:0 16px}
+.pairs{display:grid;gap:6px;margin-top:12px}
+.pair{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;padding:8px 10px;border-radius:10px;background:var(--bg)}
+.pair i{width:12px;height:12px;border-radius:4px;flex:none}
+.pair.wait{color:var(--muted);font-weight:500}
 .vs.live{background:var(--ball);color:#14201a}
 .vs.live:before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#c0392b;margin-right:5px;vertical-align:middle;animation:blink 1.2s infinite}
 @keyframes blink{50%{opacity:.2}}
@@ -248,7 +267,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
 (function(){
   "use strict";
   var DEFAULT = {v:2,mode:"teams",name:"Paddle Palz",scoring:"games",pts:{w:3,d:1,l:0},courts:2,double:false,
-    ppm:24,rounds:0,rankBy:"total",minMatches:0,startedAt:0,deuce:"advantage",thirdSet:"set",matchMins:0,
+    ppm:24,rounds:0,rankBy:"total",minMatches:0,startedAt:0,deuce:"advantage",thirdSet:"set",matchMins:0,roster:[],rosterHidden:[],picks:null,
     teams:[{id:"t1",name:""},{id:"t2",name:""},{id:"t3",name:""},{id:"t4",name:""}],
     matches:[],started:false,updatedAt:0};
   /* =====================================================================
@@ -267,6 +286,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   function normalise(v){
     v = v || {};
     v.name = brand(v.name);
+    if (!v.started && Array.isArray(v.teams)) v.teams = v.teams.filter(function(t){ return t && String(t.name||"").trim(); });
     Object.keys(DEFAULT).forEach(function(k){ if (v[k]===undefined) v[k]=JSON.parse(JSON.stringify(DEFAULT[k])); });
     if (!Array.isArray(v.matches)) v.matches = Object.keys(v.matches||{}).map(function(k){ return v.matches[k]; });
     v.matches.forEach(function(m){ if (!m.score) m.score=null; });
@@ -859,6 +879,96 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     return h;
   }
 
+  /* ---------- known players ---------- */
+  var PAIR_COLS = ["#d9f24a","#7fd3ff","#ffb36b","#c9a7ff","#7fe0b0","#ff9fb8","#ffe066","#a0b4ff","#b5e48c","#f4a3ff"];
+  function lc(n){ return String(n||"").trim().toLowerCase(); }
+  function splitPair(n){ var p=String(n||"").split(/\s*(?:&|\+|\/|\band\b)\s*/i).map(function(x){return x.trim();}).filter(Boolean); return p.length===2 ? p : [String(n||"").trim()]; }
+  function knownPlayers(){
+    var seen={}, out=[], hidden={};
+    (S.rosterHidden||[]).forEach(function(n){ hidden[lc(n)]=1; });
+    function add(n){
+      n=String(n||"").trim(); var k=lc(n); if(!n||hidden[k]) return;
+      if (seen[k]!=null){ if (/^[a-z]/.test(out[seen[k]]) && /^[A-Z]/.test(n)) out[seen[k]]=n; return; } // prefer "Rich" over "rich"
+      seen[k]=out.length; out.push(n);
+    }
+    (S.roster||[]).forEach(add);
+    H.sessions.forEach(function(ss){ (ss.players||[]).forEach(function(n){ (ss.mode==="americano"?[n]:splitPair(n)).forEach(add); }); });
+    S.teams.forEach(function(t){ (AM()?[t.name]:splitPair(t.name)).forEach(add); });
+    (S.picks||[]).forEach(add);
+    return out.sort(function(a,b){ return a.localeCompare(b,"en",{sensitivity:"base"}); });
+  }
+  function picks(){ // fixed teams: players in the order they were tapped; partners pair up 1+2, 3+4 ...
+    if (!Array.isArray(S.picks)){ S.picks=[]; S.teams.forEach(function(t){ var p=splitPair(t.name); if (p.length===2){ S.picks.push(p[0],p[1]); } }); }
+    return S.picks;
+  }
+  function rebuildTeams(){
+    var p=picks(), t=[];
+    for (var i=0;i+1<p.length;i+=2) t.push({id:"t"+(i/2+1), name:p[i]+" & "+p[i+1]});
+    S.teams=t;
+  }
+  function togglePlayer(name){
+    var k=lc(name);
+    if (AM()){
+      var at=-1; S.teams.forEach(function(t,i){ if(lc(t.name)===k) at=i; });
+      if (at>=0) S.teams.splice(at,1); else S.teams.push({id:uid("t"), name:name});
+    } else {
+      var p=picks(), idx=-1; p.forEach(function(n,i){ if(lc(n)===k) idx=i; });
+      if (idx>=0){
+        var mate = idx%2===0 ? idx+1 : idx-1, mateName = (mate<p.length) ? p[mate] : null;
+        p.splice(Math.max(idx,mate<p.length?mate:idx),1); if (mateName!=null) p.splice(Math.min(idx,mate),1);
+        if (mateName!=null) p.push(mateName); // partner stays in, waiting for someone new
+      }
+      else p.push(name);
+      rebuildTeams();
+    }
+  }
+  function addPlayer(name){
+    name=String(name||"").replace(/\s+/g," ").trim().replace(/(^|[\s\-'])([a-z])/g,function(m,a,b){return a+b.toUpperCase();}); if(!name) return;
+    var k=lc(name), existing=knownPlayers().filter(function(n){return lc(n)===k;})[0];
+    S.rosterHidden=(S.rosterHidden||[]).filter(function(n){return lc(n)!==k;});
+    if (!existing){ S.roster=(S.roster||[]).concat([name]); existing=name; }
+    if (!isPicked(existing)) togglePlayer(existing);
+  }
+  function isPicked(name){
+    var k=lc(name);
+    if (AM()) return S.teams.some(function(t){return lc(t.name)===k;});
+    return picks().some(function(n){return lc(n)===k;});
+  }
+  function pickIndex(name){ var k=lc(name), p=picks(); for (var i=0;i<p.length;i++) if (lc(p[i])===k) return i; return -1; }
+  function viewPlayerPicker(){
+    var am=AM(), list=knownPlayers(), edit=!!ui.rosterEdit, nSel = am ? S.teams.length : picks().length;
+    var h = '<div><div class="phead"><label class="f" style="margin:0">'+"Who\u2019s playing?"+'</label>' +
+      '<div class="acts">'+(list.length?'<button class="chip'+(edit?" on":"")+'" data-act="roster-edit">'+(edit?"Done":"Edit")+'</button>':'')+
+      (am && !edit && list.length ? '<button class="chip" data-act="pick-'+(nSel===list.length?"none":"all")+'">'+(nSel===list.length?"None":"All")+'</button>' : '') +
+      (!am && !edit && nSel>3 ? '<button class="chip" data-act="pick-shuffle">Shuffle</button>' : '') +
+      (!am && !edit && nSel ? '<button class="chip" data-act="pick-none">Clear</button>' : '') + '</div></div>';
+    h += '<div class="hint" style="margin-top:4px">'+(edit ? "Tap a name to remove it from the list. Their past results are kept."
+      : am ? nSel+" selected"+(nSel && nSel<4 ? " \u00b7 need at least 4" : "")
+      : Math.floor(nSel/2)+" team"+(Math.floor(nSel/2)===1?"":"s")+(nSel%2 ? " \u00b7 pick a partner for "+esc(picks()[nSel-1]) : nSel ? "" : " \u00b7 tap two partners, one after the other"))+'</div>';
+    h += '<div class="pgrid">';
+    list.forEach(function(n){
+      if (edit){ h += '<button class="pchip edit" data-unroster="'+esc(n)+'">'+esc(n)+'</button>'; return; }
+      var on=isPicked(n), badge="", cls="pchip";
+      if (on && !am){
+        var i=pickIndex(n), team=Math.floor(i/2), waiting=(i===picks().length-1 && picks().length%2===1);
+        cls += waiting ? " pending" : " on";
+        if (!waiting) badge = '<span class="tb" style="background:'+PAIR_COLS[team%PAIR_COLS.length]+'">'+(team+1)+'</span>';
+      } else if (on) cls += " on";
+      h += '<button class="'+cls+'" data-pick="'+esc(n)+'">'+esc(n)+badge+'</button>';
+    });
+    if (!edit) h += '<button class="pchip add" data-act="roster-add">+ Add</button>';
+    h += '</div>';
+    if (ui.addingPlayer && !edit){
+      h += '<div class="paddrow"><input type="text" data-newplayer placeholder="New player\u2019s name" autocomplete="off" autocapitalize="words" enterkeyhint="done">' +
+        '<button class="btn" data-act="roster-save">Add</button></div>';
+    }
+    if (!am && S.teams.length && !edit){
+      h += '<div class="pairs">' + S.teams.map(function(t,i){ return '<div class="pair"><i style="background:'+PAIR_COLS[i%PAIR_COLS.length]+'"></i>Team '+(i+1)+' \u00b7 '+esc(t.name)+'</div>'; }).join("") +
+        (picks().length%2 ? '<div class="pair wait"><i style="background:var(--line)"></i>'+esc(picks()[picks().length-1])+' \u00b7 waiting for a partner</div>' : '') + '</div>';
+    }
+    return h + '</div>';
+  }
+
   function timeSetting(dis){
     var v=S.matchMins|0, presets=[0,10,15,20,25,30], custom = presets.indexOf(v)<0;
     return '<div><label class="f">Time per match</label><div class="seg">' + presets.map(function(x){
@@ -876,6 +986,8 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
         '<button data-mode="americano" class="'+(am?"on":"")+'">Americano<small>Rotating partners</small></button></div></div>';
     }
     h += '<div><label class="f">Event name</label><input type="text" data-field="name" value="'+esc(S.name)+'"'+dis+'></div>';
+    if (!S.started && !readOnly){ h += viewPlayerPicker(); }
+    else {
     h += '<div><label class="f">'+who+' ('+S.teams.length+')</label>';
     S.teams.forEach(function(t,i){
       h += '<div class="row"><span class="n">'+(i+1)+'</span><input type="text" data-team="'+t.id+'" placeholder="'+(am?"Player name":"e.g. Sam & Alex")+'" value="'+esc(t.name)+'"'+dis+'>' +
@@ -884,6 +996,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     if (!S.started && !readOnly) h += '<button class="chip" data-act="add-team" style="margin-top:10px">+ Add '+(am?"player":"team")+'</button>';
     if (S.started) h += '<div class="hint">You can rename '+who.toLowerCase()+' any time. To add or remove '+who.toLowerCase()+', reset the tournament.</div>';
     h += '</div>';
+    }
 
     if (am){
       if (!S.started){
@@ -935,7 +1048,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
           h += '<div class="note" style="margin-bottom:10px">'+total+' matches over '+rounds+' rounds · '+perRound+' match'+(perRound>1?"es":"")+' per round'+(n%2?' · one team sits out each round':'')+'.</div>';
         }
         h += '<button class="btn" data-act="generate"'+(ok?"":" disabled")+'>Generate fixtures</button>';
-        if (n<min) h += '<div class="hint" style="text-align:center">Americano needs at least 4 players.</div>';
+        if (n<min) h += '<div class="hint" style="text-align:center">'+(am?'Pick at least 4 players.':'Pick at least 2 teams.')+'</div>';
         else if (named!==n) h += '<div class="hint" style="text-align:center">Name everyone to continue (or remove empty rows).</div>';
         h += '</div>';
       } else {
@@ -1450,6 +1563,14 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     if (d.mins!=null && t.hasAttribute("data-mins")){ S.matchMins=+d.mins; commit(); return; }
     if (d.deuce){ S.deuce=d.deuce; commit(); return; }
     if (d.third){ S.thirdSet=d.third; commit(); return; }
+    if (t.hasAttribute("data-pick")){ togglePlayer(t.getAttribute("data-pick")); commit(); return; }
+    if (t.hasAttribute("data-unroster")){
+      var un=t.getAttribute("data-unroster"), uk=lc(un);
+      if (isPicked(un)) togglePlayer(un);
+      S.roster=(S.roster||[]).filter(function(n){return lc(n)!==uk;});
+      S.rosterHidden=(S.rosterHidden||[]).filter(function(n){return lc(n)!==uk;}).concat([un]);
+      commit(); return;
+    }
     if (d.wmatch){ var wm=findMatch(d.wmatch); if (wm){ if (wm.live && wm.live.ts && clockOf(wm).up) firedUp[wm.id]=true; ui.liveSaveArmed=false; ui.modal={kind:"live", m:wm}; render(); } return; }
     if (d.session){ ui.modal={kind:"session", id:d.session, m:{id:null}}; ui.delArmed=false; render(); return; }
     if (d.minm!=null && t.hasAttribute("data-minm")){ S.minMatches=+d.minm; commit(); return; }
@@ -1476,7 +1597,15 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       commitLive(mm); return;
     }
     if (d.step){ setSingle(d.step,(ui.modal[d.step][0]||0)+(+d.d)); render(); return; }
-    if (d.mode){ S.mode=d.mode; commit(); return; }
+    if (d.mode){
+      if (d.mode!==S.mode && !S.started){
+        var people = AM() ? S.teams.map(function(x){return x.name;}) : picks().slice();
+        S.mode=d.mode;
+        if (AM()){ S.teams = people.map(function(n){return {id:uid("t"), name:n};}); }
+        else { S.picks = people; rebuildTeams(); }
+      } else S.mode=d.mode;
+      commit(); return;
+    }
     if (d.ppm!=null && t.hasAttribute("data-ppm")){ S.ppm=+d.ppm; commit(); return; }
     if (d.rank){ S.rankBy=d.rank; commit(); return; }
     if (d.scoring){ S.scoring=d.scoring; commit(); return; }
@@ -1484,6 +1613,14 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     if (d.del){ S.teams = S.teams.filter(function(x){return x.id!==d.del;}); commit(); return; }
     switch(d.act){
       case "toggle-unplayed": ui.unplayedOnly=!ui.unplayedOnly; render(); break;
+      case "roster-edit": ui.rosterEdit=!ui.rosterEdit; ui.addingPlayer=false; render(); break;
+      case "roster-add": ui.addingPlayer=true; render(); setTimeout(function(){ var i=app.querySelector("[data-newplayer]"); if(i) i.focus(); },30); break;
+      case "roster-save":
+        var np=app.querySelector("[data-newplayer]"); if (np && np.value.trim()){ addPlayer(np.value); ui.addingPlayer=false; commit(); }
+        break;
+      case "pick-all": knownPlayers().forEach(function(n){ if(!isPicked(n)) togglePlayer(n); }); commit(); break;
+      case "pick-none": if (AM()) S.teams=[]; else { S.picks=[]; rebuildTeams(); } commit(); break;
+      case "pick-shuffle": var sp=picks(); shuffle(sp); rebuildTeams(); commit(); break;
       case "add-team": S.teams.push({id:uid("t"),name:""}); commit();
         setTimeout(function(){var ins=app.querySelectorAll("[data-team]"); if(ins.length) ins[ins.length-1].focus();},0); break;
       case "generate":
@@ -1577,6 +1714,11 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   });
   app.addEventListener("keydown", function(e){
     if (e.key==="Enter" && e.target.dataset.team && !S.started){ e.target.blur(); }
+    if (e.key==="Enter" && e.target.hasAttribute && e.target.hasAttribute("data-newplayer")){
+      e.preventDefault(); if (e.target.value.trim()){ addPlayer(e.target.value); ui.addingPlayer=true; commit();
+        setTimeout(function(){ var i=app.querySelector("[data-newplayer]"); if(i){ i.value=""; i.focus(); } },30); }
+      return;
+    }
     if (e.key==="Escape" && ui.modal){ if (ui.modal.kind==="live") return; ui.modal=null; render(); }
   });
 
