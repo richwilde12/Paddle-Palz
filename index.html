@@ -105,6 +105,8 @@ input:focus,select:focus{border-color:var(--accent)}
 .seg button{flex:1;border:0;background:var(--bg);padding:10px 6px;font-weight:600;cursor:pointer;color:var(--muted)}
 .seg button.on{background:var(--accent-soft);color:var(--accent)}
 .seg.big button{padding:12px 6px}
+.seg.fmt button{padding:10px 4px;font-size:14px;line-height:1.2}
+.seg.fmt button small{font-size:10.5px}
 .seg.big button small{display:block;font-weight:500;font-size:11px;margin-top:2px;opacity:.85}
 .btn{display:block;width:100%;border:0;border-radius:12px;padding:14px;font-weight:700;cursor:pointer;background:var(--accent);color:var(--accent-ink);font-size:15px}
 .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
@@ -305,7 +307,10 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   var loaded = !USE_API, pendingRender = false;
   var ver = -1, queue = [], inflight = null, flushTimer = null, pollTimer = null;
 
-  function AM(){ return S.mode==="americano"; }
+  function AM(){ return S.mode==="americano"; }            // rally-point scoring
+  function ROT(){ return S.mode==="rotating"; }            // rotating partners, standard padel scoring
+  function IND(){ return AM() || ROT(); }                  // individual players, partners rotate
+  function modeLabel(m){ return ({americano:"Americano", rotating:"Rotating pairs", teams:"Fixed pairs"})[m||S.mode] || ""; }
   function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
   function team(id){for(var i=0;i<S.teams.length;i++) if(S.teams[i].id===id) return S.teams[i]; return null;}
   function tname(id){var t=team(id); return t ? (t.name||"Unnamed") : "?";}
@@ -472,7 +477,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   function sheetSummary(){
     var courts = Math.max(1, S.courts|0), byR = {};
     S.matches.forEach(function(m){ (byR[m.r]=byR[m.r]||[]).push(m); });
-    var results = [["Round","Court", AM()?"Pair A":"Team A", AM()?"Pair B":"Team B","Score A","Score B","Status"]];
+    var results = [["Round","Court", IND()?"Pair A":"Team A", IND()?"Pair B":"Team B","Score A","Score B","Status"]];
     Object.keys(byR).sort(function(a,b){return a-b;}).forEach(function(r){
       byR[r].sort(function(x,y){return x.i-y.i;}).forEach(function(m,idx){
         var res = result(m), lv = (!m.score && m.live && m.live.h) ? liveOf(m) : null;
@@ -482,15 +487,19 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       });
     });
     var table;
-    if (AM()){
+    if (ROT()){
+      table = [["Pos","Player","Played","Won","Drawn","Lost"].concat(setsMode()?["Sets +/-"]:[]).concat(["Games +/-","Points"])];
+      standingsRot().forEach(function(x,i){ table.push([i+1,x.name,x.p,x.w,x.d,x.l].concat(setsMode()?[x.sd]:[]).concat([x.gd,x.pts])); });
+    } else if (AM()){
       table = [["Pos","Player","Played","Won","Drawn","Lost","+/-","Average","Points"]];
       standingsAm().forEach(function(x,i){ table.push([i+1,x.name,x.p,x.w,x.d,x.l,x.diff,Math.round(x.avg*10)/10,x.pf]); });
     } else {
       table = [["Pos","Team","Played","Won","Drawn","Lost"].concat(setsMode()?["Sets +/-"]:[]).concat(["Games +/-","Points"])];
       standingsTeams().forEach(function(x,i){ table.push([i+1,x.name,x.p,x.w,x.d,x.l].concat(setsMode()?[x.sd]:[]).concat([x.gd,x.pts])); });
     }
-    var overall = [["Pos","Player","Sessions","Played","Won","Drawn","Lost","+/-","Total points","Average"]];
-    overallRows().forEach(function(x,i){ overall.push([x.qualified? i+1 : "\u2013", x.name, x.sessions, x.p, x.w, x.d, x.l, x.diff, x.pf, Math.round(x.avg*10)/10]); });
+    var overall = [["Format","Pos","Player","Sessions","Played","Won","Drawn","Lost","+/- (points or games)","Total","Average per match"]];
+    overallModes().forEach(function(om){ var obp=om==="americano";
+      overallRows(om).forEach(function(x,i){ overall.push([modeLabel(om), x.qualified? i+1 : "\u2013", x.name, x.sessions, x.p, x.w, x.d, x.l, x.diff, obp?x.pf:x.lp, Math.round((obp?x.avg:x.lpavg)*100)/100]); }); });
     var all = [["Date","Session","Round","Side A","Side B","Score A","Score B"]];
     H.sessions.forEach(function(ss){ ss.matches.forEach(function(m){ all.push([ss.date, brand(ss.name), m.r, m.a.join(" & "), m.b.join(" & "), m.sa, m.sb]); }); });
     return {name:S.name, results:results, table:table, overall:overall, allMatches:all};
@@ -660,6 +669,20 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     });
     return s;
   }
+  function standingsRot(){
+    var rows={};
+    S.teams.forEach(function(t){ rows[t.id]={id:t.id,name:t.name||"Unnamed",p:0,w:0,d:0,l:0,gf:0,ga:0,sf:0,sa:0,pts:0,form:[]}; });
+    ordered().forEach(function(m){
+      var r=result(m); if(!r) return;
+      function apply(ids,gf,ga,sf,sa,res){ ids.forEach(function(id){ var x=rows[id]; if(!x) return; x.p++; x.gf+=gf; x.ga+=ga; x.sf+=sf; x.sa+=sa;
+        if(res==="W")x.w++; else if(res==="L")x.l++; else x.d++; x.form.push(res); }); }
+      apply(m.a, r.ga, r.gb, r.sa, r.sb, r.w==="a"?"W":r.w==="b"?"L":"D");
+      apply(m.b, r.gb, r.ga, r.sb, r.sa, r.w==="b"?"W":r.w==="a"?"L":"D");
+    });
+    var list=Object.keys(rows).map(function(k){var x=rows[k]; x.pts=x.w*S.pts.w+x.d*S.pts.d+x.l*S.pts.l; x.gd=x.gf-x.ga; x.sd=x.sf-x.sa; return x;});
+    list.sort(function(x,y){ return y.pts-x.pts || (setsMode()? y.sd-x.sd : 0) || y.gd-x.gd || y.gf-x.gf || x.name.localeCompare(y.name); });
+    return list;
+  }
   function standingsAm(){
     var rows={};
     S.teams.forEach(function(t){ rows[t.id]={id:t.id,name:t.name||"Unnamed",p:0,w:0,d:0,l:0,pf:0,pa:0,form:[]}; });
@@ -685,9 +708,9 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   function render(){
     if (WATCH){ app.innerHTML = renderWatch(); keepAwake(!!(ui.modal && ui.modal.kind==="live")); return; }
     var played = S.matches.filter(function(m){return m.score;}).length, total=S.matches.length;
-    var st = statusText(), who = AM() ? "players" : "teams";
+    var st = statusText(), who = IND() ? "players" : "teams";
     var h = '<div class="wrap"><header><div><h1>'+esc(S.name||"Padel Palz")+'</h1>' +
-      '<div class="sub">'+(S.started? played+' of '+total+' matches played · '+S.teams.length+' '+who+(AM()?' · Americano':'') : 'Set up your '+who+' to get started')+'</div></div>' +
+      '<div class="sub">'+(S.started? played+' of '+total+' matches played · '+S.teams.length+' '+who+' · '+modeLabel() : 'Set up your '+who+' to get started')+'</div></div>' +
       '<div class="hdr-r"><button class="help" data-act="guide" aria-label="Help and user guide">?</button>' +
       '<button id="status" data-act="diag" class="status '+st[1]+'">'+esc(st[0])+'</button></div></header>';
     if (readOnly) h += '<div class="banner">You can view this tracker but not edit it.</div>';
@@ -750,7 +773,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       });
     });
     if (!anyShown) h += '<div class="empty">Every match has a result.</div>';
-    if (AM() && !readOnly) h += '<div style="margin-top:16px"><button class="btn ghost" data-act="add-round">+ Add another round</button>' +
+    if (IND() && !readOnly) h += '<div style="margin-top:16px"><button class="btn ghost" data-act="add-round">+ Add another round</button>' +
       '<div class="hint" style="text-align:center">Pairs players who’ve partnered least so far.</div></div>';
     return h;
   }
@@ -769,29 +792,37 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   function aggregate(sessions){
     var rows={};
     sessions.forEach(function(ss){
-      var seen={};
+      var seen={}, lpts = ss.pts || {w:3,d:1,l:0};
       ss.matches.forEach(function(m){
         var res = (m.ra!=null) ? (m.ra>m.rb?"a":m.rb>m.ra?"b":"d") : (m.sa>m.sb?"a":m.sb>m.sa?"b":"d");
         [["a",m.a,m.sa,m.sb],["b",m.b,m.sb,m.sa]].forEach(function(sd){
           sd[1].forEach(function(n){
             var k=String(n).trim().toLowerCase(); if(!k) return;
-            var x=rows[k]||(rows[k]={name:String(n).trim(),sessions:0,p:0,w:0,d:0,l:0,pf:0,pa:0});
+            var x=rows[k]||(rows[k]={name:String(n).trim(),sessions:0,p:0,w:0,d:0,l:0,pf:0,pa:0,lp:0});
             x.name=String(n).trim();
             if(!seen[k]){ seen[k]=1; x.sessions++; }
             x.p++; x.pf+=sd[2]; x.pa+=sd[3];
-            if (res==="d") x.d++; else if (res===sd[0]) x.w++; else x.l++;
+            if (res==="d"){ x.d++; x.lp+=lpts.d; } else if (res===sd[0]){ x.w++; x.lp+=lpts.w; } else { x.l++; x.lp+=lpts.l; }
           });
         });
       });
     });
-    return Object.keys(rows).map(function(k){ var x=rows[k]; x.diff=x.pf-x.pa; x.avg=x.p?x.pf/x.p:0; return x; });
+    return Object.keys(rows).map(function(k){ var x=rows[k]; x.diff=x.pf-x.pa; x.avg=x.p?x.pf/x.p:0; x.lpavg=x.p?x.lp/x.p:0; return x; });
   }
-  function overallRows(){
-    var list = H.sessions.slice(), cur = currentAsSession();
-    if (cur.matches.length) list.push(cur);
-    var rows = aggregate(list), min = S.minMatches|0;
-    rows.forEach(function(x){ x.qualified = x.p>=min; });
-    rows.sort(function(x,y){ return (y.qualified-x.qualified) || y.avg-x.avg || y.p-x.p || y.pf-x.pf || x.name.localeCompare(y.name); });
+  function sessMode(ss){ return ss.mode || "americano"; }
+  function overallModes(){ // formats that have results, current one first
+    var have={}; H.sessions.forEach(function(ss){ have[sessMode(ss)]=1; });
+    if (currentAsSession().matches.length) have[S.mode]=1;
+    return ["americano","rotating","teams"].filter(function(m){ return have[m] || m===S.mode; }).sort(function(a,b){ return (b===S.mode)-(a===S.mode); });
+  }
+  function overallMode(){ var ms=overallModes(); return ms.indexOf(ui.overallMode)>=0 ? ui.overallMode : ms[0]; }
+  function overallRows(mode){
+    mode = mode || overallMode();
+    var list = H.sessions.filter(function(ss){ return sessMode(ss)===mode; }), cur = currentAsSession();
+    if (cur.matches.length && S.mode===mode) list.push(cur);
+    var rows = aggregate(list), min = S.minMatches|0, byPts = mode==="americano";
+    rows.forEach(function(x){ x.qualified = x.p>=min; x.metric = byPts ? x.avg : x.lpavg; });
+    rows.sort(function(x,y){ return (y.qualified-x.qualified) || y.metric-x.metric || (byPts?0:y.diff-x.diff) || y.p-x.p || y.pf-x.pf || x.name.localeCompare(y.name); });
     return rows;
   }
   function sessionRows(ss){
@@ -807,21 +838,25 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     return rows;
   }
   function viewOverall(){
-    var rows = overallRows(), min = S.minMatches|0, cur = currentAsSession().matches.length;
-    var h = '<div class="card"><div class="toolbar" style="margin-bottom:8px"><strong>All sessions</strong><span class="hint" style="margin:0">'+H.sessions.length+' saved'+(cur?' + today':'')+'</span></div>';
+    var mode = overallMode(), modes = overallModes(), byPts = mode==="americano";
+    var rows = overallRows(mode), min = S.minMatches|0, cur = currentAsSession().matches.length && S.mode===mode;
+    var nSaved = H.sessions.filter(function(ss){ return sessMode(ss)===mode; }).length;
+    var h = '';
+    if (modes.length>1) h += '<div class="seg" style="margin-bottom:10px">' + modes.map(function(m){ return '<button data-omode="'+m+'" class="'+(m===mode?"on":"")+'">'+modeLabel(m)+'</button>'; }).join("") + '</div>';
+    h += '<div class="card"><div class="toolbar" style="margin-bottom:8px"><strong>'+modeLabel(mode)+' \u2013 all sessions</strong><span class="hint" style="margin:0">'+nSaved+' saved'+(cur?' + today':'')+'</span></div>';
     if (!rows.length){
       h += '<div class="empty" style="padding:16px 4px">No results yet. When a session ends, tap <b>Finish &amp; save to history</b> in Setup and it\u2019ll count here.</div></div>';
     } else {
-      h += '<table><thead><tr><th></th><th class="l">Player</th><th class="hide-sm">Sess</th><th>P</th><th>W</th><th class="hide-sm">+/\u2212</th><th class="hide-sm">Total</th><th>Avg</th></tr></thead><tbody>';
+      h += '<table><thead><tr><th></th><th class="l">'+(mode==="teams"?"Pair":"Player")+'</th><th class="hide-sm">Sess</th><th>P</th><th>W</th><th class="hide-sm">'+(byPts?"+/\u2212":"Games")+'</th><th class="hide-sm">'+(byPts?"Total":"Pts")+'</th><th>'+(byPts?"Avg":"Pts/m")+'</th></tr></thead><tbody>';
       var shownLine=false;
       rows.forEach(function(x,i){
         if (!x.qualified && !shownLine && min>0){ shownLine=true; h += '<tr><td colspan="8" class="l hint" style="padding:10px 4px 4px">Fewer than '+min+' matches \u2013 not ranked yet</td></tr>'; }
         h += '<tr class="'+(i===0&&x.qualified?"lead":"")+'"'+(x.qualified?'':' style="opacity:.6"')+'><td class="pos"><span>'+(x.qualified?i+1:"\u2013")+'</span></td><td class="l name">'+esc(x.name)+'</td>' +
-          '<td class="hide-sm">'+x.sessions+'</td><td>'+x.p+'</td><td>'+x.w+'</td><td class="hide-sm">'+sign(x.diff)+'</td><td class="hide-sm">'+x.pf+'</td><td class="pts">'+x.avg.toFixed(1)+'</td></tr>';
+          '<td class="hide-sm">'+x.sessions+'</td><td>'+x.p+'</td><td>'+x.w+'</td><td class="hide-sm">'+sign(x.diff)+'</td><td class="hide-sm">'+(byPts?x.pf:x.lp)+'</td><td class="pts">'+(byPts?x.avg.toFixed(1):x.lpavg.toFixed(2))+'</td></tr>';
       });
       h += '</tbody></table></div>';
     }
-    h += '<div class="hint" style="margin:8px 4px 12px">Ranked by average points per match across every saved session'+(cur?', plus today\u2019s matches so far':'')+'. Players are matched by name, so keep spellings the same each week.</div>';
+    h += '<div class="hint" style="margin:8px 4px 12px">'+(byPts ? 'Ranked by average points per match' : 'Ranked by average league points per match (win '+S.pts.w+', draw '+S.pts.d+'), then game difference')+' across every saved '+modeLabel(mode)+' session'+(cur?', plus today\u2019s matches so far':'')+'. Each format has its own table, because the scoring is different. Players are matched by name.</div>';
     h += '<div class="card" style="margin-bottom:12px"><label class="f">Minimum matches to be ranked</label><div class="seg">' + [0,3,5,10,20].map(function(v){
       return '<button data-minm="'+v+'" class="'+(min===v?"on":"")+'"'+(readOnly?" disabled":"")+'>'+(v?v:"None")+'</button>'; }).join("") + '</div>' +
       '<div class="hint">Stops someone who played one great match topping the table.</div></div>';
@@ -830,7 +865,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     if (!H.sessions.length) h += '<div class="hint" style="margin:0 2px">None saved yet.</div>';
     H.sessions.slice().sort(function(a,b){ return a.date<b.date?1:a.date>b.date?-1:0; }).forEach(function(ss){
       var top = sessionRows(ss)[0];
-      h += '<button class="match" data-session="'+ss.id+'" style="grid-template-columns:1fr auto"><div class="t">'+esc(brand(ss.name))+'<small style="color:var(--muted);font-weight:500">'+esc(niceDate(ss.date))+' \u00b7 '+ss.matches.length+' matches \u00b7 '+ss.players.length+' '+(ss.mode==="americano"?"players":"teams")+'</small></div>' +
+      h += '<button class="match" data-session="'+ss.id+'" style="grid-template-columns:1fr auto"><div class="t">'+esc(brand(ss.name))+'<small style="color:var(--muted);font-weight:500">'+esc(modeLabel(sessMode(ss)))+' \u00b7 '+esc(niceDate(ss.date))+' \u00b7 '+ss.matches.length+' matches \u00b7 '+ss.players.length+' '+(ss.mode==="teams"?"teams":"players")+'</small></div>' +
         '<div class="sc" style="text-align:right">'+(top?'<span class="sets" style="margin:0">Winner</span>\ud83c\udfc6 '+esc(top.name):'')+'</div></button>';
     });
     return h;
@@ -838,9 +873,9 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   function viewSession(){
     var ss = H.sessions.filter(function(x){return x.id===ui.modal.id;})[0];
     if (!ss) return '';
-    var rows = sessionRows(ss), am = ss.mode==="americano";
+    var rows = sessionRows(ss), am = ss.mode==="americano", ind = ss.mode!=="teams";
     var h = '<div class="scrim" data-act="close-bg"><div class="sheet"><h3>'+esc(brand(ss.name))+'</h3><div class="hint" style="margin:0 0 10px">'+esc(niceDate(ss.date))+' \u00b7 '+ss.matches.length+' matches'+(am&&ss.ppm?' \u00b7 '+ss.ppm+' points':'')+'</div>' +
-      '<table><thead><tr><th></th><th class="l">'+(am?"Player":"Team")+'</th><th>P</th><th>W</th><th>+/\u2212</th><th>Avg</th><th>'+(am?"Pts":"Pts")+'</th></tr></thead><tbody>';
+      '<table><thead><tr><th></th><th class="l">'+(ind?"Player":"Team")+'</th><th>P</th><th>W</th><th>+/\u2212</th><th>Avg</th><th>'+(am?"Pts":"Pts")+'</th></tr></thead><tbody>';
     rows.forEach(function(x,i){
       h += '<tr class="'+(i===0?"lead":"")+'"><td class="pos"><span>'+(i+1)+'</span></td><td class="l name">'+esc(x.name)+'</td><td>'+x.p+'</td><td>'+x.w+'</td><td>'+sign(x.diff)+'</td><td>'+x.avg.toFixed(1)+'</td><td class="pts">'+(am?x.pf:x.lp)+'</td></tr>';
     });
@@ -865,6 +900,20 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   function viewTable(){
     if (!S.started) return '<div class="card empty">The table appears once fixtures are generated.</div>';
     var h;
+    if (ROT()){
+      var rr = standingsRot(), sets3 = setsMode();
+      h = '<div class="card"><table><thead><tr><th></th><th class="l">Player</th><th>P</th><th>W</th><th class="hide-sm">D</th><th>L</th>' +
+        (sets3?'<th>Sets</th>':'')+'<th>Games</th><th class="hide-sm">Form</th><th>Pts</th></tr></thead><tbody>';
+      rr.forEach(function(x,i){
+        h += '<tr class="'+(i===0&&x.p>0?"lead":"")+'"><td class="pos"><span>'+(i+1)+'</span></td><td class="l name">'+esc(x.name)+'</td>' +
+          '<td>'+x.p+'</td><td>'+x.w+'</td><td class="hide-sm">'+x.d+'</td><td>'+x.l+'</td>' + (sets3?'<td>'+sign(x.sd)+'</td>':'') + '<td>'+sign(x.gd)+'</td>' +
+          '<td class="hide-sm"><span class="form">'+x.form.slice(-5).map(function(f){return '<i class="'+f+'"></i>';}).join("")+'</span></td><td class="pts">'+x.pts+'</td></tr>';
+      });
+      h += '</tbody></table></div>';
+      h += '<div class="hint" style="margin:8px 4px 14px">Each player gets their pair\u2019s result every match. Ranked by points (win '+S.pts.w+' \u00b7 draw '+S.pts.d+' \u00b7 loss '+S.pts.l+')'+(sets3?', then set difference':'')+', then game difference, then games won.</div>';
+      h += '<button class="btn ghost" data-act="copy">'+(ui.copied?"Copied \u2713":"Copy table as text")+'</button>';
+      return h;
+    }
     if (AM()){
       var rows = standingsAm(), byAvg = S.rankBy==="avg";
       h = '<div class="card"><table><thead><tr><th></th><th class="l">Player</th><th>P</th><th>W</th><th class="hide-sm">D</th><th class="hide-sm">L</th><th>+/−</th>' +
@@ -909,8 +958,8 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       seen[k]=out.length; out.push(n);
     }
     (S.roster||[]).forEach(add);
-    H.sessions.forEach(function(ss){ (ss.players||[]).forEach(function(n){ (ss.mode==="americano"?[n]:splitPair(n)).forEach(add); }); });
-    S.teams.forEach(function(t){ (AM()?[t.name]:splitPair(t.name)).forEach(add); });
+    H.sessions.forEach(function(ss){ (ss.players||[]).forEach(function(n){ (ss.mode==="teams"?splitPair(n):[n]).forEach(add); }); });
+    S.teams.forEach(function(t){ (IND()?[t.name]:splitPair(t.name)).forEach(add); });
     (S.picks||[]).forEach(add);
     return out.sort(function(a,b){ return a.localeCompare(b,"en",{sensitivity:"base"}); });
   }
@@ -925,7 +974,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   }
   function togglePlayer(name){
     var k=lc(name);
-    if (AM()){
+    if (IND()){
       var at=-1; S.teams.forEach(function(t,i){ if(lc(t.name)===k) at=i; });
       if (at>=0) S.teams.splice(at,1); else S.teams.push({id:uid("t"), name:name});
     } else {
@@ -948,12 +997,12 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   }
   function isPicked(name){
     var k=lc(name);
-    if (AM()) return S.teams.some(function(t){return lc(t.name)===k;});
+    if (IND()) return S.teams.some(function(t){return lc(t.name)===k;});
     return picks().some(function(n){return lc(n)===k;});
   }
   function pickIndex(name){ var k=lc(name), p=picks(); for (var i=0;i<p.length;i++) if (lc(p[i])===k) return i; return -1; }
   function viewPlayerPicker(){
-    var am=AM(), list=knownPlayers(), edit=!!ui.rosterEdit, nSel = am ? S.teams.length : picks().length;
+    var am=IND(), list=knownPlayers(), edit=!!ui.rosterEdit, nSel = am ? S.teams.length : picks().length;
     var h = '<div><div class="phead"><label class="f" style="margin:0">'+"Who\u2019s playing?"+'</label>' +
       '<div class="acts">'+(list.length?'<button class="chip'+(edit?" on":"")+'" data-act="roster-edit">'+(edit?"Done":"Edit")+'</button>':'')+
       (am && !edit && list.length ? '<button class="chip" data-act="pick-'+(nSel===list.length?"none":"all")+'">'+(nSel===list.length?"None":"All")+'</button>' : '') +
@@ -996,32 +1045,33 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   }
 
   function viewSetup(){
-    var dis = readOnly ? " disabled" : "", am = AM(), who = am ? "Players" : "Teams";
+    var dis = readOnly ? " disabled" : "", am = AM(), ind = IND(), who = ind ? "Players" : "Teams";
     var h = '<div class="card stack">';
     if (!S.started && !readOnly){
-      h += '<div><label class="f">Format</label><div class="seg big">' +
-        '<button data-mode="teams" class="'+(!am?"on":"")+'">Fixed teams<small>Same pairs all event</small></button>' +
-        '<button data-mode="americano" class="'+(am?"on":"")+'">Americano<small>Rotating partners</small></button></div></div>';
+      h += '<div><label class="f">Format</label><div class="seg big fmt">' +
+        '<button data-mode="americano" class="'+(S.mode==="americano"?"on":"")+'">Americano<small>New partners \u00b7 rally points</small></button>' +
+        '<button data-mode="rotating" class="'+(S.mode==="rotating"?"on":"")+'">Rotating pairs<small>New partners \u00b7 games &amp; sets</small></button>' +
+        '<button data-mode="teams" class="'+(S.mode==="teams"?"on":"")+'">Fixed pairs<small>Same partner \u00b7 games &amp; sets</small></button></div></div>';
     }
     h += '<div><label class="f">Event name</label><input type="text" data-field="name" value="'+esc(S.name)+'"'+dis+'></div>';
     if (!S.started && !readOnly){ h += viewPlayerPicker(); }
     else {
     h += '<div><label class="f">'+who+' ('+S.teams.length+')</label>';
     S.teams.forEach(function(t,i){
-      h += '<div class="row"><span class="n">'+(i+1)+'</span><input type="text" data-team="'+t.id+'" placeholder="'+(am?"Player name":"e.g. Sam & Alex")+'" value="'+esc(t.name)+'"'+dis+'>' +
+      h += '<div class="row"><span class="n">'+(i+1)+'</span><input type="text" data-team="'+t.id+'" placeholder="'+(ind?"Player name":"e.g. Sam & Alex")+'" value="'+esc(t.name)+'"'+dis+'>' +
         (!S.started && !readOnly ? '<button class="icon" data-del="'+t.id+'" aria-label="Remove">×</button>':'')+'</div>';
     });
-    if (!S.started && !readOnly) h += '<button class="chip" data-act="add-team" style="margin-top:10px">+ Add '+(am?"player":"team")+'</button>';
+    if (!S.started && !readOnly) h += '<button class="chip" data-act="add-team" style="margin-top:10px">+ Add '+(ind?"player":"team")+'</button>';
     if (S.started) h += '<div class="hint">You can rename '+who.toLowerCase()+' any time. To add or remove '+who.toLowerCase()+', reset the tournament.</div>';
     h += '</div>';
     }
 
-    if (am){
-      if (!S.started){
+    if (ind && !S.started){
         h += '<div class="grid2"><div><label class="f">Courts</label><input type="number" min="1" max="20" inputmode="numeric" data-field="courts" value="'+S.courts+'"></div>' +
           '<div><label class="f">Rounds</label><input type="number" min="1" max="60" inputmode="numeric" data-field="rounds" placeholder="Auto" value="'+(S.rounds>0?S.rounds:"")+'">' +
           '<div class="hint">Leave blank and everyone partners everyone'+(S.teams.length>=4?' ('+autoRounds(S.teams.length)+' rounds)':'')+'.</div></div></div>';
-      }
+    }
+    if (am){
       h += '<div><label class="f">Points per match</label><div class="seg">' + [16,21,24,32,0].map(function(v){
         return '<button data-ppm="'+v+'" class="'+(S.ppm===v?"on":"")+'"'+dis+'>'+(v?v:"Timed")+'</button>'; }).join("") + '</div>' +
         '<div class="hint">'+(S.ppm?'Every rally counts; the two scores add up to '+S.ppm+'.':'No fixed total — enter whatever each pair scored when time runs out.')+'</div></div>';
@@ -1035,7 +1085,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
         h += '<div><label class="f">Scoring</label><div class="seg">' +
           '<button data-scoring="games" class="'+(S.scoring==="games"?"on":"")+'">Games (one set / timed)</button>' +
           '<button data-scoring="sets" class="'+(S.scoring==="sets"?"on":"")+'">Sets (best of 3)</button></div></div>';
-        h += '<div class="grid2"><div><label class="f">Courts</label><input type="number" min="1" max="20" inputmode="numeric" data-field="courts" value="'+S.courts+'"></div>' +
+        if (!ind) h += '<div class="grid2"><div><label class="f">Courts</label><input type="number" min="1" max="20" inputmode="numeric" data-field="courts" value="'+S.courts+'"></div>' +
           '<div><label class="f">Play each team</label><div class="seg"><button data-double="0" class="'+(!S.double?"on":"")+'">Once</button><button data-double="1" class="'+(S.double?"on":"")+'">Twice</button></div></div></div>';
       }
       h += '<div><label class="f">At 40\u201340 (deuce)</label><div class="seg">' +
@@ -1054,19 +1104,19 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     if (!readOnly){
       if (!S.started){
         var named = S.teams.filter(function(t){return t.name.trim();}).length, n = S.teams.length;
-        var min = am ? 4 : 2, ok = named===n && n>=min;
+        var min = ind ? 4 : 2, ok = named===n && n>=min;
         h += '<div style="margin-top:14px">';
-        if (am && n>=4){
+        if (ind && n>=4){
           var k=amCourts(n), R=amRounds(), sit=n-4*k;
           h += '<div class="note" style="margin-bottom:10px">'+R+' rounds · '+k+' court'+(k>1?"s":"")+' in use · '+(R*k)+' matches'+
             (sit? ' · '+sit+' player'+(sit>1?"s sit":" sits")+' out each round':'')+'. Each player plays about '+Math.round(R*4*k/n)+' matches.'+
             (k<(S.courts|0)?' (You only need '+k+' court'+(k>1?"s":"")+' for '+n+' players.)':'')+'</div>';
-        } else if (!am && n>=2){
+        } else if (!ind && n>=2){
           var perRound = Math.floor(n/2), rounds = (n%2?n:n-1)*(S.double?2:1), total = n*(n-1)/2*(S.double?2:1);
           h += '<div class="note" style="margin-bottom:10px">'+total+' matches over '+rounds+' rounds · '+perRound+' match'+(perRound>1?"es":"")+' per round'+(n%2?' · one team sits out each round':'')+'.</div>';
         }
         h += '<button class="btn" data-act="generate"'+(ok?"":" disabled")+'>Generate fixtures</button>';
-        if (n<min) h += '<div class="hint" style="text-align:center">'+(am?'Pick at least 4 players.':'Pick at least 2 teams.')+'</div>';
+        if (n<min) h += '<div class="hint" style="text-align:center">'+(ind?'Pick at least 4 players.':'Pick at least 2 teams.')+'</div>';
         else if (named!==n) h += '<div class="hint" style="text-align:center">Name everyone to continue (or remove empty rows).</div>';
         h += '</div>';
       } else {
@@ -1155,6 +1205,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   document.addEventListener("visibilitychange", function(){ if (document.visibilityState==="visible" && ui.modal && ui.modal.kind==="live"){ wakeLock=null; keepAwake(true); } });
   /* ---------- fixed teams: padel scoring, point by point ---------- */
   function teamPlayers(id){
+    if (Array.isArray(id)) return id.map(tname);
     var n = tname(id), parts = n.split(/\s*(?:&|\+|\/|,|\band\b)\s*/i).filter(function(x){return x;});
     return parts.length===2 ? parts : [n+" (1st)", n+" (2nd)"];
   }
@@ -1227,14 +1278,14 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       var sub = (R.tb||R.mtb) ? (R.mtb?"Match tiebreak":"Tiebreak") : "Games "+(s==="a"?R.ga:R.gb);
       if (R.done) sub = "Sets "+(s==="a"?R.wa:R.wb);
       return '<button class="lp '+(serving?"serving":"")+(win?" won":"")+'" data-live="'+s+'"'+(R.done||readOnly?" disabled":"")+'>' +
-        '<span class="nm">'+(serving?'\ud83c\udfbe ':'')+'<b>'+esc(tname(m[s]))+'</b></span>' +
+        '<span class="nm">'+(serving?'\ud83c\udfbe ':'')+'<b>'+esc(side(m,s))+'</b></span>' +
         '<span class="num">'+(R.done ? (s==="a"?R.wa:R.wb) : ptLabel(R,s))+'</span>' +
         '<span class="tap">'+(R.done ? (win?"Winners":"") : sub)+'</span></button>';
     }
     var setsLine = R.sets.length ? '<div class="k">Sets: '+R.sets.map(function(x){return x.m ? "MTB "+x.tb[0]+"\u2013"+x.tb[1] : x[0]+"\u2013"+x[1]+(x.tb?" ("+Math.min(x.tb[0],x.tb[1])+")":"");}).join(", ")+'</div>' : '';
     var mid;
     if (R.done){
-      mid = '<div class="lmid"><b>Match complete \u2013 '+esc(tname(m[R.winner]))+' win</b>'+setsLine+'<div class="k">Tap undo if the last point was wrong.</div></div>';
+      mid = '<div class="lmid"><b>Match complete \u2013 '+esc(side(m,R.winner))+' win</b>'+setsLine+'<div class="k">Tap undo if the last point was wrong.</div></div>';
     } else {
       var what = R.mtb ? "Match tiebreak, first to 10" : R.tb ? "Tiebreak, first to 7" : (S.scoring==="sets" ? "Set "+(R.sets.length+1)+" \u00b7 " : "") + "Games "+R.ga+"\u2013"+R.gb + (timerOn() && S.scoring!=="sets" ? " \u00b7 play until time" : "");
       var call = R.golden ? '<div class="k"><b>Golden point</b>: the receiving pair choose which side to receive on</div>'
@@ -1242,7 +1293,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       mid = '<div class="lmid">'+what+setsLine +
         '<br>\ud83c\udfbe <b>'+esc(R.server.n)+'</b> serves'+(R.golden?'':' from the <b>'+R.side+'</b>')+call+'</div>';
       if (R.ev==="game-ends" || R.ev==="set-ends" || R.ev==="ends") mid = '<div class="ends">\u21c4 Change ends</div>' + mid;
-      else if (R.ev==="set") mid = '<div class="ends" style="background:var(--accent-soft);color:var(--ink)">Set to '+esc(tname(m[R.sets[R.sets.length-1][0]>R.sets[R.sets.length-1][1]?"a":"b"]))+'</div>' + mid;
+      else if (R.ev==="set") mid = '<div class="ends" style="background:var(--accent-soft);color:var(--ink)">Set to '+esc(side(m,(R.sets[R.sets.length-1][0]>R.sets[R.sets.length-1][1])?"a":"b"))+'</div>' + mid;
     }
     var pre = (k===0 && !readOnly) ? '<div class="lbar" style="grid-template-columns:1fr 1fr;margin:2px 0 4px">' +
       '<button class="btn ghost" data-act="live-swap-team">Swap serving pair</button><button class="btn ghost" data-act="live-swap-order">Swap who serves first</button></div>' +
@@ -1468,7 +1519,10 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   var GUIDE = [
     ["start","What is Padel Palz?",
       '<p>A scoreboard for our padel sessions. It sets out who plays who and on which court, keeps score, and works out the tables. Everything saves to a shared Google Sheet, so every phone sees the same thing within a few seconds.</p>' +
-      '<p>Usually we play <b>Americano</b>: you get a new partner each round, and you keep every point your pair wins. The player with the most points wins the night.</p>'],
+      '<p>There are three formats:</p><ul>' +
+      '<li><b>Americano</b>: a new partner each round, and you keep every point your pair wins. The most points wins the night.</li>' +
+      '<li><b>Rotating pairs</b>: a new partner each round, but matches use normal padel scoring (15\u201330\u201340, games and sets). You get your pair\u2019s win, draw or loss, and the table ranks players by league points.</li>' +
+      '<li><b>Fixed pairs</b>: the same partner all session, with normal scoring, and pairs ranked as teams.</li></ul>'],
     ["find","Finding your match",
       '<ul><li>Open the <b>Matches</b> tab. Matches are grouped into rounds, each showing the <b>court number</b> and both pairs.</li>' +
       '<li>If you\u2019re not playing in a round, your name appears under <b>Sitting out</b> at the top of that round.</li>' +
@@ -1483,7 +1537,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       '<li>Tapped the wrong one? Hit <b>Undo</b>.</li>' +
       '<li>A banner tells you when to <b>change ends</b> at halfway.</li>' +
       '<li>When the last point is played, tap <b>Save result</b>. You can close the screen mid-match and the score is kept.</li></ul>' +
-      '<p><b>Fixed teams</b> use proper padel scoring when scored live: 15\u201330\u201340, deuce (or golden point), games, sets and tiebreaks. Just tap the pair that wins each rally. The app works out the score, who serves next and when to change ends. Before the first point you can swap which pair, and which player, serves first. If you run out of time, tap <b>Stop &amp; save score so far</b> twice.</p>' +
+      '<p><b>Rotating pairs</b> and <b>Fixed pairs</b> use proper padel scoring when scored live: 15\u201330\u201340, deuce (or golden point), games, sets and tiebreaks. Just tap the pair that wins each rally. The app works out the score, who serves next and when to change ends. Before the first point you can swap which pair, and which player, serves first. If you run out of time, tap <b>Stop &amp; save score so far</b> twice.</p>' +
       '<p><b>Match clock:</b> if the organiser sets a <b>Time per match</b> (for one-set or timed games), a countdown appears at the top of the live screen. It starts with the first point. Use \u275a\u275a to pause it for a break and <b>+1</b> to add a minute. The ring turns amber with 2 minutes left and red with 1. The last 10 seconds count down across the screen, and at zero your phone beeps and buzzes. Finish the point in play, then tap <b>Save result</b>.</p>' +
       '<p><b>Made a mistake?</b> Tap a finished match to change the score, or tap <b>Clear result</b>.</p>'],
     ["tables","Today and Overall tables",
@@ -1494,7 +1548,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       '<p>Every rally is <b>1 point</b>, with no 15-30-40 and no deuce. A match is a fixed total, e.g. <b>24 points</b>, so it ends when 24 rallies have been played, not when someone reaches 24.</p>' +
       '<p>The serve goes A \u2192 C \u2192 B \u2192 D, alternating pairs, with each player serving a block of points (6 each in a 24-point match). The <b>Rules</b> tab has the full details.</p>'],
     ["organise","For the organiser",
-      '<ol><li><b>Setup</b> \u2192 choose <b>Americano</b> (rotating partners) or <b>Fixed teams</b>.</li>' +
+      '<ol><li><b>Setup</b> \u2192 choose a format: <b>Americano</b> (new partner each round, every rally is a point), <b>Rotating pairs</b> (new partner each round, normal games and sets), or <b>Fixed pairs</b> (same partner all session).</li>' +
       '<li>Add everyone\u2019s names. <b>Use the same spelling every week</b>, because that\u2019s how the Overall table matches people up.</li>' +
       '<li>Set the courts and points per match (24 is a good default), then tap <b>Generate fixtures</b>. Everyone gets a fair mix of partners and sit-outs.</li>' +
       '<li>Running ahead of time? <b>Matches</b> \u2192 <b>+ Add another round</b>.</li>' +
@@ -1591,6 +1645,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     }
     if (d.wmatch){ var wm=findMatch(d.wmatch); if (wm){ if (wm.live && wm.live.ts && clockOf(wm).up) firedUp[wm.id]=true; ui.liveSaveArmed=false; ui.modal={kind:"live", m:wm}; render(); } return; }
     if (d.session){ ui.modal={kind:"session", id:d.session, m:{id:null}}; ui.delArmed=false; render(); return; }
+    if (d.omode){ ui.overallMode=d.omode; ui.copiedOverall=false; render(); return; }
     if (d.minm!=null && t.hasAttribute("data-minm")){ S.minMatches=+d.minm; commit(); return; }
     if (d.tab){ ui.tab=d.tab; ui.copied=false; ui.copiedOverall=false; if (d.tab==="overall") fetchHistory(); render(); window.scrollTo(0,0); return; }
     if (d.match){
@@ -1617,9 +1672,9 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     if (d.step){ setSingle(d.step,(ui.modal[d.step][0]||0)+(+d.d)); render(); return; }
     if (d.mode){
       if (d.mode!==S.mode && !S.started){
-        var people = AM() ? S.teams.map(function(x){return x.name;}) : picks().slice();
+        var people = IND() ? S.teams.map(function(x){return x.name;}) : picks().slice();
         S.mode=d.mode;
-        if (AM()){ S.teams = people.map(function(n){return {id:uid("t"), name:n};}); }
+        if (IND()){ S.teams = people.map(function(n){return {id:uid("t"), name:n};}); }
         else { S.picks = people; rebuildTeams(); }
       } else S.mode=d.mode;
       commit(); return;
@@ -1638,7 +1693,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
         var np=app.querySelector("[data-newplayer]"); if (np && np.value.trim()){ addPlayer(np.value); ui.addingPlayer=false; commit(); }
         break;
       case "pick-all": knownPlayers().forEach(function(n){ if(!isPicked(n)) togglePlayer(n); }); commit(); break;
-      case "pick-none": if (AM()) S.teams=[]; else { S.picks=[]; rebuildTeams(); } commit(); break;
+      case "pick-none": if (IND()) S.teams=[]; else { S.picks=[]; rebuildTeams(); } commit(); break;
       case "pick-shuffle": var sp=picks(); shuffle(sp); rebuildTeams(); commit(); break;
       case "add-team": S.teams.push({id:uid("t"),name:""}); commit();
         setTimeout(function(){var ins=app.querySelectorAll("[data-team]"); if(ins.length) ins[ins.length-1].focus();},0); break;
@@ -1646,7 +1701,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
         S.teams.forEach(function(x){x.name=x.name.trim();});
         t.textContent="Building fixtures…"; t.classList.add("busy");
         setTimeout(function(){
-          S.matches = AM() ? scheduleAmericano([], amRounds()) : generateTeams();
+          S.matches = IND() ? scheduleAmericano([], amRounds()) : generateTeams();
           S.startedAt = Date.now();
           S.started = true; ui.tab="matches"; commit(); window.scrollTo(0,0);
         }, 30);
@@ -1664,8 +1719,9 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
         else { ui.delArmed=false; deleteSession(ui.modal.id); }
         break;
       case "copy-overall":
-        var olines=["Overall table \u2013 average points per match",""];
-        overallRows().forEach(function(x,i){ olines.push((x.qualified?(i+1)+". ":"\u2013 ")+x.name+" \u2014 avg "+x.avg.toFixed(1)+" ("+x.p+" matches, "+x.w+" wins)"); });
+        var om=overallMode(), obp=om==="americano";
+        var olines=[modeLabel(om)+" overall \u2013 "+(obp?"average points per match":"league points per match"),""];
+        overallRows(om).forEach(function(x,i){ olines.push((x.qualified?(i+1)+". ":"\u2013 ")+x.name+" \u2014 "+(obp?"avg "+x.avg.toFixed(1):x.lpavg.toFixed(2)+" pts/match")+" ("+x.p+" matches, "+x.w+" wins)"); });
         var otxt=olines.join("\n");
         try { navigator.clipboard.writeText(otxt).then(function(){ui.copiedOverall=true;render();}).catch(function(){fallbackCopy(otxt);}); } catch(e){ fallbackCopy(otxt); }
         break;
@@ -1760,7 +1816,9 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
 
   function copyTable(){
     var lines=[S.name, ""];
-    if (AM()){
+    if (ROT()){
+      standingsRot().forEach(function(x,i){ lines.push((i+1)+". "+x.name+" \u2014 "+x.pts+" pts ("+x.w+"W "+x.d+"D "+x.l+"L, games "+sign(x.gd)+(setsMode()?", sets "+sign(x.sd):"")+")"); });
+    } else if (AM()){
       standingsAm().forEach(function(x,i){
         lines.push((i+1)+". "+x.name+" — "+x.pf+" pts ("+x.w+"W "+x.d+"D "+x.l+"L, "+sign(x.diff)+(S.rankBy==="avg"?", avg "+x.avg.toFixed(1):"")+")");
       });
