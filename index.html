@@ -137,6 +137,48 @@ input:focus,select:focus{border-color:var(--accent)}
 .err{color:var(--loss);font-size:13px;margin-top:8px}
 .banner{font-size:13px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);margin-bottom:12px;color:var(--muted)}
 .busy{opacity:.6;pointer-events:none}
+.mebtn{position:relative;width:34px;height:34px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);font-weight:800;font-size:15px;cursor:pointer}
+.mebtn.anon{background:var(--card);color:var(--muted);border:1px solid var(--line);font-size:14px}
+.mebtn .bdg{position:absolute;top:-4px;right:-5px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#d64545;color:#fff;font-size:11px;font-weight:800;line-height:18px;border:2px solid var(--bg)}
+.hdr-r .row1{display:flex;gap:8px}
+.match.mine{border-color:var(--accent);box-shadow:inset 4px 0 0 var(--accent)}
+tr.me td{background:var(--accent-soft)}
+tr.me td.name:after{content:" \00b7 you";color:var(--accent);font-weight:600;font-size:12px}
+.mehead{display:flex;align-items:center;gap:14px}
+.mehead .av{width:62px;height:62px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-family:"Bricolage Grotesque",Inter,sans-serif;font-size:28px;font-weight:800;flex:none}
+.mehead h2{font-family:"Bricolage Grotesque",Inter,sans-serif;font-size:24px;margin:0;line-height:1.1}
+.mehead .since{font-size:13px;color:var(--muted);margin-top:3px}
+.back{border:0;background:none;color:var(--accent);font-weight:700;padding:4px 0;margin-bottom:8px;cursor:pointer;font-size:15px}
+.stat4{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.stat b{display:block;font-family:"Bricolage Grotesque",Inter,sans-serif;font-size:26px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted);font-weight:600}
+.sec-h{font-family:"Bricolage Grotesque",Inter,sans-serif;font-size:17px;margin:20px 2px 8px;display:flex;justify-content:space-between;align-items:baseline}
+.sec-h small{font-family:Inter,sans-serif;font-size:12px;color:var(--muted);font-weight:500}
+.next{background:var(--accent);color:var(--accent-ink);border-radius:16px;padding:14px 16px}
+.next .k{font-size:12px;opacity:.85;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.next .big{font-family:"Bricolage Grotesque",Inter,sans-serif;font-size:20px;font-weight:800;margin:4px 0 2px}
+.next .btn{background:var(--ball);color:#14201a;margin-top:10px;padding:11px}
+.formrow{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.formrow i{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-style:normal;font-size:11px;font-weight:800;color:#fff}
+.formrow .W{background:var(--win)}.formrow .L{background:var(--loss)}.formrow .D{background:var(--draw)}
+.plist .pr{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.plist .pr:last-child{border-bottom:0}
+.plist .lab{font-size:12px;color:var(--muted);font-weight:600;width:96px;flex:none}
+.plist .nm{flex:1;font-weight:700}
+.plist .val{font-size:13px;color:var(--muted);text-align:right}
+.news .it{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}
+.news .it:last-child{border-bottom:0}
+.news .ic{width:30px;height:30px;border-radius:9px;background:var(--accent-soft);display:grid;place-items:center;flex:none;font-size:15px}
+.news .when{font-size:12px;color:var(--muted)}
+.whogrid{max-height:52vh;overflow:auto;margin:10px -2px 0;padding:2px}
+.youare{text-align:center;padding:10px 0 4px}
+.youare .av{width:76px;height:76px;margin:0 auto 10px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-family:"Bricolage Grotesque",Inter,sans-serif;font-size:34px;font-weight:800}
+.peep .pr{display:grid;grid-template-columns:1fr auto;gap:4px 10px;padding:11px 0;border-bottom:1px solid var(--line)}
+.peep .pr:last-child{border-bottom:0}
+.peep .nm{font-weight:700}
+.peep .meta{grid-column:1/2;font-size:12px;color:var(--muted)}
+.peep .acts{grid-row:1/3;grid-column:2;display:flex;gap:6px;align-items:center}
 .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:7px;margin-top:8px}
 .pchip{position:relative;height:42px;border-radius:12px;border:1.5px solid var(--line);background:var(--bg);font-weight:600;font-size:14px;padding:0 8px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;-webkit-tap-highlight-color:transparent;transition:background .12s,border-color .12s,transform .08s}
 .pchip:active{transform:scale(.96)}
@@ -353,7 +395,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       var id = str(x.id,24) || uid("s"); if (seen[id]) return null; seen[id]=1;
       var mode = ["americano","rotating","teams"].indexOf(x.mode)>=0 ? x.mode : "americano";
       var pts = obj(x.pts) || {};
-      return {id:id, date: /^\d{4}-\d{2}-\d{2}$/.test(String(x.date)) ? String(x.date) : todayISO(), name: str(x.name,60) || "Session", mode:mode,
+      return {id:id, at:int(x.at,0,1e15,0), date: /^\d{4}-\d{2}-\d{2}$/.test(String(x.date)) ? String(x.date) : todayISO(), name: str(x.name,60) || "Session", mode:mode,
         ppm:int(x.ppm,0,99,24), rankBy: x.rankBy==="avg"?"avg":(mode==="americano"?"total":"points"),
         pts:{w:int(pts.w,-10,10,3), d:int(pts.d,-10,10,1), l:int(pts.l,-10,10,0)}, scoring: x.scoring==="sets"?"sets":"games",
         players: (Array.isArray(x.players)?x.players:[]).map(function(n){return str(n,40).trim();}).filter(Boolean).slice(0,200),
@@ -380,6 +422,30 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     if (!Array.isArray(v.teams)) v.teams = Object.keys(v.teams||{}).map(function(k){ return v.teams[k]; });
     return v;
   }
+  /* ---------- who is using this phone (no login: one tap, remembered here; the sheet keeps a copy) ---------- */
+  var MEKEY = "padel-palz-me";
+  var ME = (function(){ try { var x = JSON.parse(localStorage.getItem(MEKEY)); if (x && typeof x==="object") return x; } catch(e){} return {}; })();
+  if (!ME.d){ ME.d = "p" + Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4); }
+  ME.n = (typeof ME.n==="string") ? ME.n.slice(0,40) : "";
+  function saveMe(){ try { localStorage.setItem(MEKEY, JSON.stringify(ME)); } catch(e){} }
+  saveMe();
+  function myName(){ return ME.n || ""; }
+  function pendingHello(){ return (inflight && inflight.op==="hello") || queue.some(function(q){ return q.op==="hello"; }); }
+  function applyMe(me, fromCheck){
+    if (!me || typeof me!=="object" || WATCH) return;
+    var changed = false;
+    if (typeof me.n==="string" && !pendingHello()){
+      var n = me.n.slice(0,40);
+      if (n && n !== ME.n){ ME.n = n; ME.skip = false; ME.src = ME.src || "picked"; changed = true; if (ui.modal && ui.modal.kind==="who") ui.modal = null; }
+      else if (!n && ME.n && fromCheck){ sayHello(); }          // the sheet doesn't know this phone yet
+    }
+    if (typeof me.seen==="number" && me.seen > (ME.seen||0)){ ME.seen = me.seen; changed = true; }
+    if (changed){ saveMe(); if (loaded) remoteRender(); }
+  }
+  function sayHello(){ if (ME.n && !WATCH) enqueue({op:"hello", d:ME.d, n:ME.n}); }
+  function isMe(n){ return !!ME.n && String(n||"").trim().toLowerCase() === ME.n.toLowerCase(); }
+  function sideHasMe(m, s){ return [].concat(m[s]).some(function(id){ var nm=tname(id); return isMe(nm) || (S.mode==="teams" && splitPair(nm).some(isMe)); }); }
+  function matchHasMe(m){ return !!ME.n && (sideHasMe(m,"a") || sideHasMe(m,"b")); }
   var S = normalise(local || JSON.parse(JSON.stringify(DEFAULT)));
   var shadow = JSON.parse(JSON.stringify(S));
   var ui = {tab: S.started ? "matches" : "setup", unplayedOnly:false, modal:null, resetArmed:false, copied:false};
@@ -422,9 +488,9 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   }
   function cacheLocal(){ try { localStorage.setItem(LSKEY, JSON.stringify(S)); } catch(e){} }
   function saveQueue(){ try { localStorage.setItem(QKEY, JSON.stringify((inflight?[inflight]:[]).concat(queue))); } catch(e){} }
-  function sameKey(x,y){ return x.op===y.op && (x.op==="setAll" || (x.op==="live" && x.id===y.id)); }
+  function sameKey(x,y){ return x.op===y.op && (x.op==="setAll" || x.op==="hello" || x.op==="seen" || (x.op==="live" && x.id===y.id)); }
   // finished sessions go through the queue too, so they survive a lost signal
-  var STALE_MS = {setAll: 15*60000, patch: 15*60000, archive: 7*24*3600000, live: 30*60000, score: 12*3600000, addMatches: 30*60000, deleteSession: 24*3600000};
+  var STALE_MS = {hello: 7*24*3600000, seen: 7*24*3600000, setAll: 15*60000, patch: 15*60000, archive: 7*24*3600000, live: 30*60000, score: 12*3600000, addMatches: 30*60000, deleteSession: 24*3600000};
   function fresh(op){ return !op.qt || (Date.now()-op.qt) < (STALE_MS[op.op] || 3600000); }
   function enqueue(op){
     if (!USE_API) return;
@@ -483,7 +549,8 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
         return;
       }
       diag.post = "OK \u2013 saved (" + op.op + ")";
-      net = "live"; ver = res.v; saveQueue();
+      net = "live"; if (typeof res.v==="number") ver = res.v; saveQueue();
+      if (res.me) applyMe(res.me);
       // our own fixtures/results change moved the structure version on by one: remember that,
       // unless someone else also changed it in between (then a later fixtures change is rightly refused)
       var bump = (op.op==="setAll" || op.op==="score" || op.op==="addMatches" || op.op==="archive") ? 1 : 0;
@@ -514,7 +581,9 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     if (document.hidden){ pollTimer = setTimeout(poll, 3500); return; }
     polling = true;
     var startedAt = Date.now();
-    fetch(SHEET_API_URL.trim() + "?t=" + encodeURIComponent(TID) + "&since=" + ver, {cache:"no-store"})
+    var askWho = !WATCH && (Date.now() - (ui.whoAt||0) > 300000);
+    if (askWho) ui.whoAt = Date.now();
+    fetch(SHEET_API_URL.trim() + "?t=" + encodeURIComponent(TID) + "&since=" + ver + (askWho ? "&whoami=1&d=" + encodeURIComponent(ME.d) : ""), {cache:"no-store"})
       .then(readJSON)
       .then(function(res){
         diag.getAt = Date.now();
@@ -523,6 +592,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
         if (!res || res.error){ net = "error"; if (!loaded){ loaded = true; render(); } else renderStatus(); return; }
         net = "live";
         var first = !loaded;
+        if (res.me) applyMe(res.me, true);
         if (res.hv!==undefined && res.hv!==hv) fetchHistory();
         if (!res.same){
           if (res.state){
@@ -532,7 +602,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
             queue = [{op:"setAll", state:JSON.parse(JSON.stringify(S)), baseV:-1, qt:Date.now()}]; saveQueue(); setTimeout(flush, 0);
           }
         }
-        if (first){ loaded = true; ui.tab = S.started ? "matches" : "setup"; render(); maybeWelcome(); } else renderStatus();
+        if (first){ loaded = true; ui.tab = S.started ? "matches" : "setup"; render(); maybeWelcome(); if (ME.n && !(res.me && res.me.n===undefined)) sayHello(); } else renderStatus();
         if (queue.length && !inflight) flush();
       })
       .catch(function(e){ diag.get = "Couldn\u2019t read: " + errText(e); diag.getAt = Date.now(); net = loaded ? "offline" : "error"; if (!loaded){ loaded = true; render(); } else renderStatus(); })
@@ -830,7 +900,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     var st = statusText(), who = IND() ? "players" : "teams";
     var h = '<div class="wrap"><header><div><h1>'+esc(S.name||"Padel Palz")+'</h1>' +
       '<div class="sub">'+(S.started? played+' of '+total+' matches played · '+S.teams.length+' '+who+' · '+modeLabel() : 'Set up your '+who+' to get started')+'</div></div>' +
-      '<div class="hdr-r"><button class="help" data-act="guide" aria-label="Help and user guide">?</button>' +
+      '<div class="hdr-r"><div class="row1">'+meButton()+'<button class="help" data-act="guide" aria-label="Help and user guide">?</button></div>' +
       '<button id="status" data-act="diag" class="status '+st[1]+'">'+esc(st[0])+'</button></div></header>';
     if (readOnly) h += '<div class="banner">You can view this tracker but not edit it.</div>';
     if (ui.notice) h += '<div class="banner" style="color:var(--ink);border-color:#e0a100">'+esc(ui.notice)+'</div>';
@@ -843,10 +913,13 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     else if (ui.tab==="matches") h += viewMatches(played,total);
     else if (ui.tab==="table") h += viewTable();
     else if (ui.tab==="overall") h += viewOverall();
+    else if (ui.tab==="me") h += viewMe();
+    else if (ui.tab==="people") h += viewPeople();
     else if (ui.tab==="rules") h += viewRules();
     else h += viewSetup();
     h += '</div>';
-    if (ui.modal && ui.modal.kind==="welcome") h += viewWelcome();
+    if (ui.modal && ui.modal.kind==="who") h += viewWho();
+    else if (ui.modal && ui.modal.kind==="welcome") h += viewWelcome();
     else if (ui.modal && ui.modal.kind==="guide") h += viewGuide();
     else if (ui.modal && ui.modal.kind==="diag") h += viewDiag();
     else if (ui.modal && ui.modal.kind==="session") h += viewSession();
@@ -887,7 +960,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
           sc = '<span class="vs live">'+esc(m.live.h ? liveText(m) : "Started")+(ck?'<span class="clk'+(ck.up?' up':'')+'" data-clock="'+m.id+'">'+(ck.up?"Time!":fmtClock(ck.left))+'</span>':'')+'</span>';
         }
         else sc = '<span class="vs">Add score</span>';
-        h += '<button class="match" data-match="'+m.id+'"><div class="court">Court '+court+(waves>1?' · Slot '+wave:'')+'</div>' +
+        h += '<button class="match'+(matchHasMe(m)?" mine":"")+'" data-match="'+m.id+'"><div class="court">Court '+court+(waves>1?' · Slot '+wave:'')+'</div>' +
           '<div class="t '+(r2&&r2.w==="b"?"dim":"")+'">'+sideHTML(m,"a")+'</div><div class="sc">'+sc+'</div>' +
           '<div class="t b '+(r2&&r2.w==="a"?"dim":"")+'">'+sideHTML(m,"b")+'</div></button>';
       });
@@ -906,7 +979,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       var r=result(m), A=[].concat(m.a).map(tname), B=[].concat(m.b).map(tname);
       return {r:m.r, a:A, b:B, sa:r.ga, sb:r.gb, ra:setsMode()?r.sa:null, rb:setsMode()?r.sb:null};
     });
-    return {id:uid("s"), date:todayISO(S.startedAt||Date.now()), name:S.name||"Session", mode:S.mode, ppm:S.ppm, rankBy:AM()?S.rankBy:"points",
+    return {id:uid("s"), at:Date.now(), date:todayISO(S.startedAt||Date.now()), name:S.name||"Session", mode:S.mode, ppm:S.ppm, rankBy:AM()?S.rankBy:"points",
       pts:S.pts, scoring:S.scoring, players:S.teams.map(function(t){return t.name;}), matches:ms};
   }
   function aggregate(sessions){
@@ -971,7 +1044,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       var shownLine=false;
       rows.forEach(function(x,i){
         if (!x.qualified && !shownLine && min>0){ shownLine=true; h += '<tr><td colspan="8" class="l hint" style="padding:10px 4px 4px">Fewer than '+min+' matches \u2013 not ranked yet</td></tr>'; }
-        h += '<tr class="'+(i===0&&x.qualified?"lead":"")+'"'+(x.qualified?'':' style="opacity:.6"')+'><td class="pos"><span>'+(x.qualified?i+1:"\u2013")+'</span></td><td class="l name">'+esc(x.name)+'</td>' +
+        h += '<tr class="'+(i===0&&x.qualified?"lead":"")+(isMe(x.name)||splitPair(x.name).some(isMe)?" me":"")+'"'+(x.qualified?'':' style="opacity:.6"')+'><td class="pos"><span>'+(x.qualified?i+1:"\u2013")+'</span></td><td class="l name">'+esc(x.name)+'</td>' +
           '<td class="hide-sm">'+x.sessions+'</td><td>'+x.p+'</td><td>'+x.w+'</td><td class="hide-sm">'+sign(x.diff)+'</td><td class="hide-sm">'+(byPts?x.pf:x.lp)+'</td><td class="pts">'+(byPts?x.avg.toFixed(1):x.lpavg.toFixed(2))+'</td></tr>';
       });
       h += '</tbody></table></div>';
@@ -1017,6 +1090,214 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     ui.modal=null; render();
   }
 
+  /* ---------- "Who are you?" ---------- */
+  function initial(n){ return esc((String(n||"?").trim()[0]||"?").toUpperCase()); }
+  function meButton(){
+    if (WATCH) return "";
+    if (!ME.n) return '<button class="mebtn anon" data-act="who" aria-label="Choose who you are">\ud83d\udc64</button>';
+    var nn = newsItems().length;
+    return '<button class="mebtn" data-tab="me" aria-label="My page">'+initial(ME.n)+(nn?'<span class="bdg">'+(nn>9?"9+":nn)+'</span>':'')+'</button>';
+  }
+  function maybeWho(){ if (WATCH || ME.n || ui.modal || ME.skip) return; ui.modal = {kind:"who"}; render(); }
+  function viewWho(){
+    var pick = ui.modal.pick, list = knownPlayers();
+    if (pick){
+      return '<div class="scrim"><div class="sheet"><div class="youare"><div class="av">'+initial(pick)+'</div>' +
+        '<h3 style="font-size:22px">Is this you, '+esc(pick)+'?</h3><p class="hint" style="margin:6px 0 0">This phone will remember you, and your matches and stats will be highlighted.</p></div>' +
+        '<div class="actions"><button class="btn" data-act="who-yes">Yes, that\u2019s me</button><button class="btn ghost" data-act="who-back">No, go back</button></div></div></div>';
+    }
+    var h = '<div class="scrim"><div class="sheet"><h3>Who are you?</h3><p class="hint" style="margin:4px 0 0">Tap your name. You only need to do this once on this phone.</p><div class="whogrid"><div class="pgrid" style="margin-top:0">';
+    list.forEach(function(n){ h += '<button class="pchip" data-whopick="'+esc(n)+'">'+esc(n)+'</button>'; });
+    h += '<button class="pchip add" data-act="who-new">+ I\u2019m new</button></div></div>';
+    if (ui.modal.adding) h += '<div class="paddrow"><input type="text" maxlength="40" data-whonew placeholder="Your name" autocomplete="off" autocapitalize="words" enterkeyhint="done"><button class="btn" data-act="who-newgo">Next</button></div>';
+    h += '<div class="actions"><button class="btn ghost" data-act="who-skip">Just looking \u2013 skip</button></div></div></div>';
+    return h;
+  }
+
+  /* ---------- My page ---------- */
+  function sidesOf(m, mode){ // names on each side; fixed-pair team names are split into players
+    function split(arr){ var out=[]; arr.forEach(function(n){ (mode==="teams"?splitPair(n):[n]).forEach(function(x){ out.push(x); }); }); return out; }
+    return {a:split(m.a), b:split(m.b)};
+  }
+  function myStats(mode){
+    var list = H.sessions.filter(function(ss){ return sessMode(ss)===mode; }), cur = currentAsSession();
+    if (cur.matches.length && S.mode===mode){ cur.today = true; list = list.concat([cur]); }
+    var st = {p:0,w:0,d:0,l:0,pf:0,pa:0,lp:0, form:[], partners:Object.create(null), opps:Object.create(null), sessions:[]};
+    list.slice().sort(function(a,b){ return (a.date<b.date?-1:a.date>b.date?1:(a.at||0)-(b.at||0)); }).forEach(function(ss){
+      var pts = ss.pts||{w:3,d:1,l:0}, played=0;
+      ss.matches.forEach(function(m){
+        var sd = sidesOf(m, mode), mine = sd.a.some(isMe) ? "a" : sd.b.some(isMe) ? "b" : null; if (!mine) return;
+        var oth = mine==="a"?"b":"a", my = mine==="a"?m.sa:m.sb, their = mine==="a"?m.sb:m.sa;
+        var w = (m.ra!=null) ? (mine==="a"?m.ra-m.rb:m.rb-m.ra) : (my-their), res = w>0?"W":w<0?"L":"D";
+        st.p++; played++; st.pf+=my; st.pa+=their; st.form.push(res);
+        if (res==="W"){ st.w++; st.lp+=pts.w; } else if (res==="L"){ st.l++; st.lp+=pts.l; } else { st.d++; st.lp+=pts.d; }
+        sd[mine].filter(function(n){ return !isMe(n); }).forEach(function(n){ var k=n.toLowerCase(), x=st.partners[k]||(st.partners[k]={name:n,p:0,w:0}); x.p++; if(res==="W") x.w++; });
+        sd[oth].forEach(function(n){ var k=n.toLowerCase(), x=st.opps[k]||(st.opps[k]={name:n,p:0,w:0,l:0}); x.p++; if(res==="W") x.w++; if(res==="L") x.l++; });
+      });
+      if (played){
+        var rows = sessionRows(ss), pos = 0; rows.forEach(function(x,i){ if (!pos && (isMe(x.name) || splitPair(x.name).some(isMe))) pos = i+1; });
+        var me = rows[pos-1] || {};
+        st.sessions.push({ss:ss, pos:pos, of:rows.length, avg: mode==="americano" ? (me.avg||0) : (me.p ? (me.lp!=null?me.lp:0)/me.p : 0), today:!!ss.today});
+      }
+    });
+    st.winpct = st.p ? Math.round(st.w*100/st.p) : 0;
+    st.metric = mode==="americano" ? (st.p? st.pf/st.p : 0) : (st.p? st.lp/st.p : 0);
+    var streak = 0; for (var i=st.form.length-1;i>=0 && st.form[i]==="W";i--) streak++; st.streak = streak;
+    var rows = overallRows(mode); st.rank = 0; st.rankOf = rows.filter(function(x){return x.qualified;}).length;
+    rows.forEach(function(x,i){ if (!st.rank && x.qualified && (isMe(x.name)||splitPair(x.name).some(isMe))) st.rank = i+1; });
+    return st;
+  }
+  function myModes(){
+    var have={}; H.sessions.forEach(function(ss){ if (ss.matches.some(function(m){ var sd=sidesOf(m,sessMode(ss)); return sd.a.some(isMe)||sd.b.some(isMe); })) have[sessMode(ss)]=1; });
+    if (S.matches.some(matchHasMe)) have[S.mode]=1;
+    var ms = ["americano","rotating","teams"].filter(function(m){ return have[m]; });
+    return ms.length ? ms : [S.mode];
+  }
+  function playingSince(){
+    var first = null;
+    H.sessions.forEach(function(ss){ if (ss.matches.some(function(m){ var sd=sidesOf(m,sessMode(ss)); return sd.a.some(isMe)||sd.b.some(isMe); })) { if (!first || ss.date<first) first = ss.date; } });
+    if (!first) return "";
+    var p=first.split("-"); return new Date(+p[0],+p[1]-1,1).toLocaleDateString("en-GB",{month:"long",year:"numeric"});
+  }
+  function ordinal(n){ var s=["th","st","nd","rd"], v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]); }
+  function newsItems(){
+    if (!ME.n) return [];
+    var seen = ME.seen || (Date.now() - 7*864e5), out = [];
+    H.sessions.forEach(function(ss){
+      var at = ss.at || new Date(ss.date+"T12:00:00").getTime(); if (at <= seen) return;
+      var mode = sessMode(ss), rows = sessionRows(ss), pos = 0;
+      rows.forEach(function(x,i){ if (!pos && (isMe(x.name) || splitPair(x.name).some(isMe))) pos = i+1; });
+      if (!pos) return;
+      var me = rows[pos-1];
+      out.push({ic: pos===1?"\ud83c\udfc6":pos===2?"\ud83e\udd48":pos===3?"\ud83e\udd49":"\ud83c\udfbe", at:at, sid:ss.id,
+        text: (pos===1?"You won ":"You finished "+ordinal(pos)+" of "+rows.length+" at ")+esc(brand(ss.name))+" ("+modeLabel(mode)+")"+
+          (mode==="americano" ? " \u2013 "+me.pf+" points, avg "+me.avg.toFixed(1) : " \u2013 "+me.w+" won from "+me.p)});
+    });
+    // rank movement since last look, per format
+    myModes().forEach(function(mode){
+      var before = H.sessions.filter(function(ss){ return sessMode(ss)===mode && (ss.at || new Date(ss.date+"T12:00:00").getTime()) <= seen; });
+      var after = H.sessions.filter(function(ss){ return sessMode(ss)===mode; });
+      if (before.length===after.length) return;
+      function rankIn(list){ var rows=aggregate(list), byPts=mode==="americano"; rows.forEach(function(x){ x.m = byPts?x.avg:x.lpavg; }); rows.sort(function(a,b){ return b.m-a.m || b.p-a.p; }); for (var i=0;i<rows.length;i++) if (isMe(rows[i].name)||splitPair(rows[i].name).some(isMe)) return i+1; return 0; }
+      var r0 = rankIn(before), r1 = rankIn(after);
+      if (r1 && r0 && r1 < r0) out.push({ic:"\ud83d\udcc8", at:Date.now(), text:"You moved up from "+ordinal(r0)+" to "+ordinal(r1)+" in the "+modeLabel(mode)+" overall table"});
+      if (r1 && r0 && r1 > r0) out.push({ic:"\ud83d\udcc9", at:Date.now(), text:"You slipped from "+ordinal(r0)+" to "+ordinal(r1)+" in the "+modeLabel(mode)+" overall table"});
+    });
+    return out.sort(function(a,b){ return b.at-a.at; });
+  }
+  function nextMatches(){
+    if (!S.started) return [];
+    var courts = Math.max(1,S.courts|0);
+    return S.matches.filter(function(m){ return !m.score && matchHasMe(m); }).map(function(m){
+      var inR = S.matches.filter(function(x){return x.r===m.r;}).sort(function(x,y){return x.i-y.i;});
+      var mine = sideHasMe(m,"a") ? "a" : "b", oth = mine==="a"?"b":"a";
+      var partner = [].concat(m[mine]).map(tname).filter(function(n){ return !isMe(n); });
+      if (S.mode==="teams") partner = splitPair(tname(m[mine])).filter(function(n){ return !isMe(n); });
+      return {m:m, court:(inR.indexOf(m)%courts)+1, partner:partner.join(" & "), opp:side(m,oth), live:!!(m.live&&(m.live.h||m.live.ts))};
+    });
+  }
+  function viewMe(){
+    if (!ME.n){ return '<div class="card empty">Choose who you are to see your page.<br><br><button class="btn" data-act="who" style="max-width:240px;margin:auto">Who are you?</button></div>'; }
+    var modes = myModes(), mode = modes.indexOf(ui.meMode)>=0 ? ui.meMode : (modes.indexOf(S.mode)>=0 ? S.mode : modes[0]);
+    var st = myStats(mode), since = playingSince(), news = newsItems(), next = nextMatches(), byPts = mode==="americano";
+    var h = '<button class="back" data-tab="'+(ui.meBack||"matches")+'">\u2190 Back</button>';
+    h += '<div class="mehead"><div class="av">'+initial(ME.n)+'</div><div><h2>'+esc(ME.n)+'</h2><div class="since">'+(since?'Playing since '+esc(since):'Welcome to Padel Palz')+'</div></div></div>';
+    // today
+    if (next.length){
+      var n0 = next[0];
+      h += '<div class="sec-h">Today<small>'+next.length+' match'+(next.length>1?'es':'')+' to play</small></div>';
+      h += '<div class="next"><div class="k">'+(n0.live?'Playing now':'Your next match')+' \u00b7 Round '+n0.m.r+' \u00b7 Court '+n0.court+'</div>' +
+        '<div class="big">'+(n0.partner?'With '+esc(n0.partner):'Your pair')+'</div><div>vs '+esc(n0.opp)+'</div>' +
+        '<button class="btn" data-match="'+n0.m.id+'">'+(n0.live?'Follow the score':'Score this match')+'</button></div>';
+      if (next.length>1) h += '<div class="hint" style="margin:8px 2px 0">Then: '+next.slice(1,4).map(function(x){ return 'Round '+x.m.r+(x.partner?' with '+esc(x.partner):''); }).join(' \u00b7 ')+(next.length>4?' \u2026':'')+'</div>';
+      var sitting = []; var rounds = {}; S.matches.forEach(function(m){ rounds[m.r]=rounds[m.r]||[]; rounds[m.r].push(m); });
+      Object.keys(rounds).forEach(function(r){ if (!rounds[r].some(matchHasMe) && rounds[r].some(function(m){return !m.score;})) sitting.push(r); });
+      if (sitting.length && S.mode!=="teams") h += '<div class="hint" style="margin:4px 2px 0">Sitting out: round'+(sitting.length>1?'s ':' ')+sitting.join(", ")+'</div>';
+    }
+    // news
+    h += '<div class="sec-h">Since you last looked'+(news.length?'<small><button class="chip" data-act="me-seen">Mark all seen</button></small>':'')+'</div>';
+    h += '<div class="card news">' + (news.length ? news.slice(0,6).map(function(x){ return '<div class="it"><div class="ic">'+x.ic+'</div><div>'+x.text+'</div></div>'; }).join("") : '<div class="hint" style="margin:0">Nothing new. Results from your next session will show here.</div>') + '</div>';
+    // format switch + stats
+    if (modes.length>1) h += '<div class="seg" style="margin:20px 0 0">'+modes.map(function(m){ return '<button data-memode="'+m+'" class="'+(m===mode?"on":"")+'">'+modeLabel(m)+'</button>'; }).join("")+'</div>';
+    h += '<div class="sec-h">'+modeLabel(mode)+' stats<small>all sessions'+(st.sessions.some(function(x){return x.today;})?' + today':'')+'</small></div>';
+    h += '<div class="stat4">' +
+      '<div class="stat"><b>'+st.p+'</b><span>Matches played</span></div>' +
+      '<div class="stat"><b>'+st.winpct+'%</b><span>Won ('+st.w+'W '+st.d+'D '+st.l+'L)</span></div>' +
+      '<div class="stat"><b>'+(byPts?st.metric.toFixed(1):st.metric.toFixed(2))+'</b><span>'+(byPts?'Avg points per match':'League points per match')+'</span></div>' +
+      '<div class="stat"><b>'+(st.rank?ordinal(st.rank):'\u2013')+'</b><span>'+(st.rank?'Overall, of '+st.rankOf:'Not ranked yet')+'</span></div></div>';
+    if (st.form.length){
+      h += '<div class="sec-h">Form<small>'+(st.streak>1?'\ud83d\udd25 '+st.streak+' wins in a row':'last '+Math.min(10,st.form.length)+' matches')+'</small></div>';
+      h += '<div class="card"><div class="formrow">'+st.form.slice(-10).map(function(f){ return '<i class="'+f+'">'+f+'</i>'; }).join("")+'</div></div>';
+    }
+    // partners & rivals
+    var parts = Object.keys(st.partners).map(function(k){ return st.partners[k]; }), opps = Object.keys(st.opps).map(function(k){ return st.opps[k]; });
+    if (parts.length || opps.length){
+      var best = parts.filter(function(x){return x.p>=3;}).sort(function(a,b){ return b.w/b.p-a.w/a.p || b.p-a.p; })[0];
+      var most = parts.slice().sort(function(a,b){ return b.p-a.p || b.w-a.w; })[0];
+      var nem = opps.filter(function(x){return x.l>=2;}).sort(function(a,b){ return b.l-a.l || (b.l/b.p)-(a.l/a.p); })[0];
+      var fav = opps.filter(function(x){return x.w>=2 && (!nem || x.name!==nem.name);}).sort(function(a,b){ return b.w-a.w; })[0];
+      h += '<div class="sec-h">Partners &amp; rivals</div><div class="card plist">' +
+        (best?'<div class="pr"><span class="lab">Best partner</span><span class="nm">'+esc(best.name)+'</span><span class="val">won '+best.w+' of '+best.p+'</span></div>':'') +
+        (most?'<div class="pr"><span class="lab">Most played with</span><span class="nm">'+esc(most.name)+'</span><span class="val">'+most.p+' match'+(most.p>1?'es':'')+'</span></div>':'') +
+        (nem?'<div class="pr"><span class="lab">Toughest opponent</span><span class="nm">'+esc(nem.name)+'</span><span class="val">beat you '+nem.l+' of '+nem.p+'</span></div>':'') +
+        (fav?'<div class="pr"><span class="lab">You beat most</span><span class="nm">'+esc(fav.name)+'</span><span class="val">'+fav.w+' wins</span></div>':'') +
+        (!best&&!nem&&!fav?'<div class="hint" style="margin:0">Play a few more matches to see your best partner and rivals.</div>':'') + '</div>';
+    }
+    // sessions
+    if (st.sessions.length){
+      h += '<div class="sec-h">My sessions<small>'+st.sessions.length+'</small></div>';
+      st.sessions.slice().reverse().slice(0, ui.meAll?999:5).forEach(function(x){
+        var ss=x.ss;
+        h += '<button class="match"'+(x.today?' data-tab="table"':' data-session="'+ss.id+'"')+' style="grid-template-columns:auto 1fr auto"><div class="pos" style="font-family:Bricolage Grotesque,Inter,sans-serif;font-size:20px;font-weight:800;width:44px">'+(x.pos?ordinal(x.pos):'\u2013')+'</div>' +
+          '<div class="t">'+esc(brand(ss.name))+'<small style="color:var(--muted);font-weight:500">'+(x.today?'Today, so far':esc(niceDate(ss.date)))+' \u00b7 of '+x.of+'</small></div>' +
+          '<div class="sc" style="text-align:right">'+(byPts?x.avg.toFixed(1)+'<span class="sets">avg</span>':x.avg.toFixed(2)+'<span class="sets">pts/match</span>')+'</div></button>';
+      });
+      if (st.sessions.length>5 && !ui.meAll) h += '<button class="chip" data-act="me-all" style="margin:2px auto 0;display:block">Show all '+st.sessions.length+'</button>';
+    }
+    // this phone
+    h += '<div class="sec-h">This phone</div><div class="card"><div style="font-size:14px">You picked your name on this phone. It\u2019s remembered here and saved with your results, but it isn\u2019t a login \u2013 anyone using this phone is \u201c'+esc(ME.n)+'\u201d.</div>' +
+      '<div class="row" style="margin-top:12px"><button class="btn ghost" data-act="who-change">Change name</button></div></div>';
+    return h;
+  }
+
+  /* ---------- People (organiser only) ---------- */
+  function viewPeople(){
+    var h = '<button class="back" data-tab="setup">\u2190 Back</button><div class="sec-h" style="margin-top:4px">People<small>organiser</small></div>';
+    if (!ui.adminOk){
+      return h + '<div class="card"><label class="f">Organiser PIN</label><div class="paddrow" style="margin-top:0"><input type="password" inputmode="numeric" maxlength="12" data-pin placeholder="PIN"><button class="btn" data-act="pin-go">Open</button></div>' +
+        (ui.pinErr?'<div class="err">'+esc(ui.pinErr)+'</div>':'')+'<div class="hint">Only the organiser can rename or merge people. The PIN is checked by the Google Sheet.</div></div>';
+    }
+    var people = peopleList();
+    if (ui.peopleMsg) h += '<div class="note" style="margin-bottom:10px">'+esc(ui.peopleMsg)+'</div>';
+    if (ui.pinErr) h += '<div class="err" style="margin:0 2px 10px">'+esc(ui.pinErr)+'</div>';
+    h += '<div class="hint" style="margin:0 2px 10px">Everyone who\u2019s played or picked their name. Renaming updates every past session. Typing an existing name merges the two.</div><div class="card peep">';
+    people.forEach(function(p){
+      h += '<div class="pr"><div class="nm">'+esc(p.name)+'</div><div class="acts"><button class="chip" data-rename="'+esc(p.name)+'">Rename</button></div>' +
+        '<div class="meta">'+p.matches+' match'+(p.matches===1?'':'es')+' \u00b7 '+p.sessions+' session'+(p.sessions===1?'':'s')+(p.phones?' \u00b7 '+p.phones+' phone'+(p.phones>1?'s':''):' \u00b7 no phone yet')+(p.seen?' \u00b7 seen '+esc(p.seen):'')+'</div></div>';
+      if (ui.renaming===p.name) h += '<div class="paddrow" style="margin:0 0 10px"><input type="text" maxlength="40" data-renameto value="'+esc(p.name)+'"><button class="btn" data-act="rename-go">Save</button></div>';
+    });
+    return h + '</div>';
+  }
+  function adminPost(body, ok){
+    body.t = TID;
+    post(body).then(function(res){
+      if (res && res.ok) return ok(res);
+      ui.pinErr = (res && res.error) || "That didn\u2019t work. Try again.";
+      if (/PIN/i.test(ui.pinErr) && !/No organiser/i.test(ui.pinErr)){ ui.adminOk=false; ui.pin=null; }
+      render();
+    }).catch(function(e){ ui.pinErr = "Couldn\u2019t reach the sheet: "+errText(e); render(); });
+  }
+  function loadPhones(){ if (!ui.pin) return; adminPost({op:"phones", pin:ui.pin}, function(res){ ui.phones = Array.isArray(res.phones) ? res.phones.filter(function(x){ return x && typeof x.n==="string"; }) : []; render(); }); }
+  function peopleList(){
+    var rows = Object.create(null);
+    function add(n, f){ var k=String(n).toLowerCase(); var x=rows[k]||(rows[k]={name:n,matches:0,sessions:0,phones:0,seen:""}); f && f(x); }
+    knownPlayers().forEach(function(n){ add(n); });
+    H.sessions.forEach(function(ss){ var seen=Object.create(null);
+      ss.matches.forEach(function(m){ var sd=sidesOf(m,sessMode(ss)); sd.a.concat(sd.b).forEach(function(n){ add(n,function(x){ x.matches++; if(!seen[n.toLowerCase()]){ seen[n.toLowerCase()]=1; x.sessions++; } }); }); }); });
+    (ui.phones||[]).forEach(function(ph){ if (!ph.n) return; add(ph.n,function(x){ x.phones++; var t=Number(ph.seen)||0; if (t && (!x.seenAt || t>x.seenAt)){ x.seenAt=t; x.seen=niceDate(todayISO(t)); } }); });
+    return Object.keys(rows).map(function(k){return rows[k];}).sort(function(a,b){ return a.name.localeCompare(b.name,"en",{sensitivity:"base"}); });
+  }
+
   function viewTable(){
     if (!S.started) return '<div class="card empty">The table appears once fixtures are generated.</div>';
     var h;
@@ -1025,7 +1306,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       h = '<div class="card"><table><thead><tr><th></th><th class="l">Player</th><th>P</th><th>W</th><th class="hide-sm">D</th><th>L</th>' +
         (sets3?'<th>Sets</th>':'')+'<th>Games</th><th class="hide-sm">Form</th><th>Pts</th></tr></thead><tbody>';
       rr.forEach(function(x,i){
-        h += '<tr class="'+(i===0&&x.p>0?"lead":"")+'"><td class="pos"><span>'+(i+1)+'</span></td><td class="l name">'+esc(x.name)+'</td>' +
+        h += '<tr class="'+(i===0&&x.p>0?"lead":"")+(isMe(x.name)||(S.mode==="teams"&&splitPair(x.name).some(isMe))?" me":"")+'"><td class="pos"><span>'+(i+1)+'</span></td><td class="l name">'+esc(x.name)+'</td>' +
           '<td>'+x.p+'</td><td>'+x.w+'</td><td class="hide-sm">'+x.d+'</td><td>'+x.l+'</td>' + (sets3?'<td>'+sign(x.sd)+'</td>':'') + '<td>'+sign(x.gd)+'</td>' +
           '<td class="hide-sm"><span class="form">'+x.form.slice(-5).map(function(f){return '<i class="'+f+'"></i>';}).join("")+'</span></td><td class="pts">'+x.pts+'</td></tr>';
       });
@@ -1039,7 +1320,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       h = '<div class="card"><table><thead><tr><th></th><th class="l">Player</th><th>P</th><th>W</th><th class="hide-sm">D</th><th class="hide-sm">L</th><th>+/−</th>' +
         '<th'+(byAvg?'':' class="hide-sm"')+'>Avg</th><th class="hide-sm">Form</th><th>Pts</th></tr></thead><tbody>';
       rows.forEach(function(x,i){
-        h += '<tr class="'+(i===0&&x.p>0?"lead":"")+'"><td class="pos"><span>'+(i+1)+'</span></td><td class="l name">'+esc(x.name)+'</td>' +
+        h += '<tr class="'+(i===0&&x.p>0?"lead":"")+(isMe(x.name)||(S.mode==="teams"&&splitPair(x.name).some(isMe))?" me":"")+'"><td class="pos"><span>'+(i+1)+'</span></td><td class="l name">'+esc(x.name)+'</td>' +
           '<td>'+x.p+'</td><td>'+x.w+'</td><td class="hide-sm">'+x.d+'</td><td class="hide-sm">'+x.l+'</td><td>'+sign(x.diff)+'</td>' +
           '<td'+(byAvg?' style="font-weight:700"':' class="hide-sm"')+'>'+x.avg.toFixed(1)+'</td>' +
           '<td class="hide-sm"><span class="form">'+x.form.slice(-5).map(function(f){return '<i class="'+f+'"></i>';}).join("")+'</span></td>' +
@@ -1052,7 +1333,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       h = '<div class="card"><table><thead><tr><th></th><th class="l">Team</th><th>P</th><th>W</th><th class="hide-sm">D</th><th>L</th>' +
         (sets?'<th>Sets</th>':'')+'<th>Games</th><th class="hide-sm">Form</th><th>Pts</th></tr></thead><tbody>';
       rows2.forEach(function(x,i){
-        h += '<tr class="'+(i===0&&x.p>0?"lead":"")+'"><td class="pos"><span>'+(i+1)+'</span></td><td class="l name">'+esc(x.name)+'</td>' +
+        h += '<tr class="'+(i===0&&x.p>0?"lead":"")+(isMe(x.name)||(S.mode==="teams"&&splitPair(x.name).some(isMe))?" me":"")+'"><td class="pos"><span>'+(i+1)+'</span></td><td class="l name">'+esc(x.name)+'</td>' +
           '<td>'+x.p+'</td><td>'+x.w+'</td><td class="hide-sm">'+x.d+'</td><td>'+x.l+'</td>' +
           (sets?'<td>'+sign(x.sd)+'</td>':'')+'<td>'+sign(x.gd)+'</td>' +
           '<td class="hide-sm"><span class="form">'+x.form.slice(-5).map(function(f){return '<i class="'+f+'"></i>';}).join("")+'</span></td>' +
@@ -1221,6 +1502,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     }
     h += '</div>';
 
+    h += '<button class="btn ghost" data-act="people" style="margin-top:14px">\ud83d\udc65 People (organiser)</button>';
     if (!readOnly){
       if (!S.started){
         var named = S.teams.filter(function(t){return t.name.trim();}).length, n = S.teams.length;
@@ -1624,7 +1906,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
   var GKEY = "padel-palz-guide-seen";
   function guideSeen(){ try { return !!(localStorage.getItem(GKEY) || localStorage.getItem("pad"+"dle-palz-guide-seen")); } catch(e){ return true; } }
   function markGuideSeen(){ try { localStorage.setItem(GKEY, "1"); } catch(e){} }
-  function maybeWelcome(){ if (WATCH) return; if (!guideSeen() && !ui.modal){ ui.modal = {kind:"welcome"}; render(); } }
+  function maybeWelcome(){ if (WATCH) return; if (!guideSeen() && !ui.modal){ ui.modal = {kind:"welcome"}; render(); } else maybeWho(); }
   function viewWelcome(){
     return '<div class="scrim"><div class="sheet guide"><h3>Welcome to Padel Palz \ud83c\udfbe</h3>' +
       '<p class="hint" style="margin:4px 0 0">Scores and tables for our padel nights. Everyone with the link sees the same scores, live.</p>' +
@@ -1765,11 +2047,14 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       S.rosterHidden=(S.rosterHidden||[]).filter(function(n){return lc(n)!==uk;}).concat([un]);
       commit(); return;
     }
+    if (t.hasAttribute("data-whopick")){ ui.modal = {kind:"who", pick:t.getAttribute("data-whopick")}; render(); return; }
+    if (d.memode){ ui.meMode=d.memode; render(); return; }
+    if (t.hasAttribute("data-rename")){ ui.renaming=t.getAttribute("data-rename"); render(); setTimeout(function(){ var i=app.querySelector("[data-renameto]"); if(i){ i.focus(); i.select(); } },30); return; }
     if (d.wmatch){ var wm=findMatch(d.wmatch); if (wm){ if (wm.live && wm.live.ts && clockOf(wm).up) firedUp[wm.id]=true; ui.liveSaveArmed=false; ui.modal={kind:"live", m:wm}; render(); } return; }
     if (d.session){ ui.modal={kind:"session", id:d.session, m:{id:null}}; ui.delArmed=false; render(); return; }
     if (d.omode){ ui.overallMode=d.omode; ui.copiedOverall=false; render(); return; }
     if (d.minm!=null && t.hasAttribute("data-minm")){ S.minMatches=+d.minm; commit(); return; }
-    if (d.tab){ ui.tab=d.tab; ui.copied=false; ui.copiedOverall=false; if (d.tab==="overall") fetchHistory(); render(); window.scrollTo(0,0); return; }
+    if (d.tab){ if (d.tab==="me" && ui.tab!=="me") ui.meBack = ui.tab; if (ui.tab==="people" && d.tab!=="people"){ ui.adminOk=false; ui.pin=null; ui.phones=null; ui.peopleMsg=""; ui.pinErr=""; } ui.tab=d.tab; ui.copied=false; ui.copiedOverall=false; if (d.tab==="overall") fetchHistory(); render(); window.scrollTo(0,0); return; }
     if (d.match){
       var m = findMatch(d.match), sm = setsMode();
       if (m.live && m.live.ts && clockOf(m).up) firedUp[m.id]=true;
@@ -1809,6 +2094,39 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
     switch(d.act){
       case "toggle-unplayed": ui.unplayedOnly=!ui.unplayedOnly; render(); break;
       case "mins-other": ui.minsOther=true; render(); setTimeout(function(){ var i=app.querySelector("[data-field=mins]"); if(i){ i.focus(); i.select(); } },30); break;
+      case "who": ui.modal={kind:"who"}; render(); break;
+      case "who-change": ui.modal={kind:"who"}; render(); break;
+      case "who-back": ui.modal={kind:"who"}; render(); break;
+      case "who-new": ui.modal.adding=true; render(); setTimeout(function(){ var i=app.querySelector("[data-whonew]"); if(i) i.focus(); },30); break;
+      case "who-newgo": var wn=app.querySelector("[data-whonew]"); if (wn && wn.value.trim()){ var nm=str(wn.value,40).replace(/\s+/g," ").trim().replace(/(^|[\s\-'])([a-z])/g,function(m,a,b){return a+b.toUpperCase();}); var ex=knownPlayers().filter(function(n){return lc(n)===lc(nm);})[0]; ui.modal={kind:"who", pick:ex||nm}; render(); } break;
+      case "who-yes":
+        var who=ui.modal.pick; ME.n=who; ME.skip=false; ME.src="picked"; if (!ME.seen) ME.seen=Date.now()-7*864e5; saveMe(); sayHello();
+        if (!knownPlayers().some(function(n){return lc(n)===lc(who);})){ S.roster=(S.roster||[]).concat([who]); commit(); }
+        ui.modal=null; render(); break;
+      case "who-skip": ME.skip=true; saveMe(); ui.modal=null; render(); break;
+      case "me-seen": ME.seen=Date.now(); saveMe(); if (USE_API && ME.n) enqueue({op:"seen", d:ME.d, seen:ME.seen}); render(); break;
+      case "me-all": ui.meAll=true; render(); break;
+      case "people": ui.tab="people"; render(); window.scrollTo(0,0); break;
+      case "pin-go":
+        var pv=(app.querySelector("[data-pin]")||{}).value||"";
+        if (!USE_API){ ui.pinErr="The People screen needs the Google Sheet connected."; render(); break; }
+        if (pv.length<4){ ui.pinErr="Enter your PIN (at least 4 digits)."; render(); break; }
+        ui.pinErr="Checking\u2026"; render();
+        adminPost({op:"adminCheck", pin:pv}, function(res){ ui.pin=pv; ui.adminOk=true; ui.pinErr=""; loadPhones(); render(); });
+        break;
+      case "rename-go":
+        var rt=(app.querySelector("[data-renameto]")||{}).value||"", rf=ui.renaming;
+        rt=str(rt,40).replace(/\s+/g," ").trim();
+        if (!rt || rt===rf){ ui.renaming=null; render(); break; }
+        ui.pinErr="Saving\u2026"; render();
+        adminPost({op:"rename", pin:ui.pin, from:rf, to:rt}, function(res){
+          ui.renaming=null; ui.pinErr=""; ui.peopleMsg=(res.merged?"Merged "+rf+" into "+res.to:"Renamed "+rf+" to "+res.to)+" everywhere.";
+          if (res.history) setHistory(res.history, res.hv);
+          if (res.state){ if (typeof res.v==="number") ver=res.v; applyRemote(res.state); }
+          if (isMe(rf)){ ME.n=res.to; saveMe(); }
+          loadPhones(); render();
+        });
+        break;
       case "roster-edit": ui.rosterEdit=!ui.rosterEdit; ui.addingPlayer=false; render(); break;
       case "roster-add": ui.addingPlayer=true; render(); setTimeout(function(){ var i=app.querySelector("[data-newplayer]"); if(i) i.focus(); },30); break;
       case "roster-save":
@@ -1854,7 +2172,7 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
       case "close": case "close-bg": if (ui.modal && ui.modal.kind==="welcome") markGuideSeen(); ui.modal=null; pendingRender=false; render(); break;
       case "guide": ui.modal = {kind:"guide"}; render(); break;
       case "guide-full": markGuideSeen(); ui.guideOpen = {start:true}; ui.modal = {kind:"guide"}; render(); break;
-      case "welcome-done": markGuideSeen(); ui.modal = null; render(); break;
+      case "welcome-done": markGuideSeen(); ui.modal = null; render(); maybeWho(); break;
       case "welcome-again": ui.modal = {kind:"welcome"}; render(); break;
       case "diag": ui.modal = {kind:"diag", m:{id:null}}; ui.diagCopied=false; render(); break;
       case "diag-retry": net = USE_API ? "connecting" : "local"; poll(); flush(); setTimeout(render, 2500); render(); break;
@@ -1916,6 +2234,9 @@ body.watch .t10{color:#ff5a4f}body.watch .t10.on{opacity:.35}
         setTimeout(function(){ var i=app.querySelector("[data-newplayer]"); if(i){ i.value=""; i.focus(); } },30); }
       return;
     }
+    if (e.key==="Enter" && e.target.hasAttribute && e.target.hasAttribute("data-pin")){ e.preventDefault(); var pg=app.querySelector("[data-act=pin-go]"); if (pg) pg.click(); return; }
+    if (e.key==="Enter" && e.target.hasAttribute && e.target.hasAttribute("data-renameto")){ e.preventDefault(); var rg=app.querySelector("[data-act=rename-go]"); if (rg) rg.click(); return; }
+    if (e.key==="Enter" && e.target.hasAttribute && e.target.hasAttribute("data-whonew")){ e.preventDefault(); var wg=app.querySelector("[data-act=who-newgo]"); if (wg) wg.click(); return; }
     if (e.key==="Escape" && ui.modal){ if (ui.modal.kind==="live") return; ui.modal=null; render(); }
   });
 
